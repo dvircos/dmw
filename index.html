@@ -100,6 +100,15 @@
       </header>
 
       <main class="px-4 py-4">
+        <div id="games-tools" class="mb-4 space-y-3">
+          <div id="league-tabs" class="grid grid-cols-4 gap-1 rounded-2xl bg-black/30 p-1 text-xs">
+            <button type="button" data-league="A" class="league-tab rounded-xl bg-gold py-2 font-bold text-ink">ליגה A</button>
+            <button type="button" data-league="B" class="league-tab rounded-xl py-2 font-medium text-slate-300">ליגה B</button>
+            <button type="button" data-league="C" class="league-tab rounded-xl py-2 font-medium text-slate-300">ליגה C</button>
+            <button type="button" data-league="D" class="league-tab rounded-xl py-2 font-medium text-slate-300">ליגה D</button>
+          </div>
+          <input id="team-search" type="search" placeholder="חיפוש קבוצה" class="w-full rounded-2xl border border-white/10 bg-panel px-4 py-3 text-sm outline-none focus:border-gold" />
+        </div>
         <section id="view-games"></section>
         <section id="view-bets" class="hidden"></section>
         <section id="view-board" class="hidden"></section>

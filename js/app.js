@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
-import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canEdit, money, when } from "./format.js";
+import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, money, when } from "./format.js";
 import { toast } from "./toast.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -97,14 +97,7 @@ function renderGames() {
     } else {
       badge.textContent = GAME_STATUS[game.status] || game.status;
     }
-    if (Number(game.fixture_id) >= 900000) {
-      const demo = document.createElement("span");
-      demo.className = "rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-gold";
-      demo.textContent = "הדגמה";
-      head.append(time, demo, badge);
-    } else {
-      head.append(time, badge);
-    }
+    head.append(time, badge);
 
     const teams = document.createElement("div");
     teams.className = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";
@@ -168,28 +161,40 @@ function renderBets() {
     title.textContent = `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
     const meta = document.createElement("p");
     meta.className = "mt-1 text-sm text-slate-300";
-    meta.textContent = `${SELECTION[bet.bet_selection] || bet.bet_selection} · יחס ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`;
+    meta.textContent = `${when(game.match_time)} · ${SELECTION[bet.bet_selection] || bet.bet_selection} · יחס ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`;
     const foot = document.createElement("div");
     foot.className = "mt-2 flex items-center justify-between text-sm";
     const payout = document.createElement("span");
     payout.dir = "ltr";
     payout.textContent = `₪${money(bet.potential_payout)}`;
     const status = document.createElement("span");
-    status.className = bet.status === "won" ? "font-bold text-emerald-300" : bet.status === "lost" ? "text-rose-300" : "text-gold";
+    status.className = bet.status === "won" ? "font-bold text-emerald-300" : bet.status === "lost" || bet.status === "cancelled" ? "text-rose-300" : "text-gold";
     status.textContent = BET_STATUS[bet.status] || bet.status;
     foot.append(payout, status);
     card.append(title, meta, foot);
     if (bet.status === "pending") {
       const editable = canEdit(bet);
+      const cancellable = canCancel(bet);
+      const actions = document.createElement("div");
+      actions.className = "mt-3 grid grid-cols-2 gap-2";
       const edit = document.createElement("button");
       edit.type = "button";
-      edit.className = "mt-3 w-full rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
+      edit.className = "rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
       edit.textContent = editable ? "עריכת הימור" : "ההימור נעול";
       edit.disabled = !editable;
       if (editable) {
         edit.addEventListener("click", () => openSheet(game, bet.bet_selection, bet.odds, bet));
       }
-      card.append(edit);
+      actions.append(edit);
+      if (cancellable) {
+        const cancel = document.createElement("button");
+        cancel.type = "button";
+        cancel.className = "rounded-2xl border border-rose-400/40 py-2 text-sm font-bold text-rose-300";
+        cancel.textContent = "בטל הימור";
+        cancel.addEventListener("click", () => cancelBet(bet));
+        actions.append(cancel);
+      }
+      card.append(actions);
     }
     root.append(card);
   });
@@ -339,7 +344,7 @@ async function refreshBets() {
     .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds)")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
-    .limit(100);
+    .limit(1000);
   if (error) {
     toast(cleanError(error), "error");
     return;
@@ -459,6 +464,25 @@ async function submitAuth(event) {
     }
   } finally {
     $("auth-submit").disabled = false;
+  }
+}
+
+async function cancelBet(bet) {
+  if (!canCancel(bet) || state.submitting) return;
+  const approved = window.confirm("לבטל את ההימור ולהחזיר את הסכום ליתרה?");
+  if (!approved) return;
+  state.submitting = true;
+  try {
+    const { data, error } = await supabase.rpc("cancel_bet", { p_bet_id: Number(bet.id) });
+    if (error) {
+      toast(cleanError(error), "error");
+      return;
+    }
+    setBalance(data.balance);
+    toast(`ההימור בוטל והסכום הוחזר · יתרה ₪${money(data.balance)}`);
+    await refreshBets();
+  } finally {
+    state.submitting = false;
   }
 }
 

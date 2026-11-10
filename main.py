@@ -229,6 +229,7 @@ class FootballClient:
     def __init__(self, api_key: str, db: Database):
         self.db = db
         self.stopped = False
+        self.emergency = False
         self.last_error = None
         self.base, headers = sports_connection(api_key)
         self.session = requests.Session()
@@ -238,7 +239,7 @@ class FootballClient:
         if self.stopped:
             return None
         self.last_error = None
-        allowed = self.db.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
+        allowed = self.db.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": self.emergency})
         if allowed is not True:
             log.warning("Daily operating limit of 80 sports requests was reached. This run stops before the reserved 20.")
             self.stopped = True
@@ -295,35 +296,35 @@ class FootballClient:
 
 
 def extract_1x2(payload: dict | None) -> dict[str, str | None] | None:
+    root = ((payload or {}).get("response") or {}).get("odds") or {}
+    inner = root.get("odds") if isinstance(root, dict) else None
+    markets: list[dict] = []
+    if isinstance(inner, dict):
+        markets.extend(item for item in inner.get("matchfactMarkets") or [] if isinstance(item, dict))
+        for tab in inner.get("oddsTabMarkets") or []:
+            if isinstance(tab, dict):
+                markets.extend(item for item in tab.get("markets") or [] if isinstance(item, dict))
+    chosen = None
+    for market in markets:
+        header = str(market.get("header") or "").strip().lower()
+        translation = str((market.get("fotMobMarketTypeId") or {}).get("translationKey") or "")
+        if header == "full time result" or translation == "who_will_win":
+            chosen = market
+            break
+    if not chosen:
+        return None
     odds = {"1": None, "X": None, "2": None}
-
-    def take(label: str, value) -> None:
-        key = label.strip().lower()
-        parsed = clamp_odd(value)
-        if key in {"1", "home", "home win"}:
-            odds["1"] = odds["1"] or parsed
-        elif key in {"x", "draw", "tie"}:
-            odds["X"] = odds["X"] or parsed
-        elif key in {"2", "away", "away win"}:
-            odds["2"] = odds["2"] or parsed
-
-    def walk(node, market: str) -> None:
-        if isinstance(node, dict):
-            market_name = str(node.get("marketName") or node.get("name") or node.get("title") or market).lower()
-            label = str(node.get("name") or node.get("value") or node.get("outcome") or node.get("label") or "")
-            price = node.get("oddsDecimal") or node.get("decimal") or node.get("odd") or node.get("price")
-            if isinstance(price, dict):
-                price = price.get("decimal") or price.get("odds")
-            interesting = any(word in market_name for word in ("1x2", "full time", "fulltime", "match winner", "match result"))
-            if interesting and label and not isinstance(price, (dict, list)):
-                take(label, price)
-            for child in node.values():
-                walk(child, market_name)
-        elif isinstance(node, list):
-            for child in node:
-                walk(child, market)
-
-    walk((payload or {}).get("response") or {}, "")
+    for selection in chosen.get("selections") or []:
+        if not isinstance(selection, dict):
+            continue
+        label = str(selection.get("name") or "").strip().lower()
+        price = clamp_odd(selection.get("oddsDecimal"))
+        if label == "1":
+            odds["1"] = price
+        elif label == "x":
+            odds["X"] = price
+        elif label == "2":
+            odds["2"] = price
     if all(odds.values()):
         return odds
     return None
@@ -574,7 +575,11 @@ def lock_odds(client: FootballClient, db: Database, games: list[dict], now: date
         else:
             if client.stopped:
                 return failures
-            payload = client.get("/football-event-odds", {"eventid": game["fixture_id"]}, "odds")
+            payload = client.get(
+                "/football-event-odds",
+                {"eventid": game["fixture_id"], "countrycode": "UK"},
+                "odds",
+            )
             if payload is None:
                 return failures
             parsed = extract_1x2(payload)

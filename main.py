@@ -16,9 +16,9 @@ import requests
 log = logging.getLogger("nations-sync")
 
 API_BASE = "https://v3.football.api-sports.io"
-RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com"
-LEAGUE_ID = 5
-BET365_ID = 8
+RAPIDAPI_HOST = "free-api-live-football-data.p.rapidapi.com"
+NATIONS_LEAGUES = (9806, 9807, 9808, 9809)
+FIXTURE_LOOKAHEAD_DAYS = 7
 PLACEHOLDERS = {"", "YOUR_SPORTS_API_KEY_HERE"}
 REGULAR_TIME_DONE = {"FT", "AET", "PEN", "ET", "BT", "P"}
 LIVE = {"1H", "HT", "2H", "LIVE", "INT", "SUSP"}
@@ -205,7 +205,7 @@ class Database:
             headers=self.headers,
             params={
                 "select": "fixture_id,home_team,away_team,home_flag,away_flag,match_time,status,round_name,odds_locked,result_confirmed",
-                "fixture_id": "lt.900000",
+                "or": "(fixture_id.lt.900000,fixture_id.gte.910000)",
                 "order": "match_time.asc",
                 "limit": "500",
             },
@@ -218,7 +218,7 @@ class Database:
 
 def sports_connection(api_key: str) -> tuple[str, dict[str, str]]:
     if "msh" in api_key and "jsn" in api_key:
-        return f"https://{RAPIDAPI_HOST}/v3", {
+        return f"https://{RAPIDAPI_HOST}", {
             "x-rapidapi-key": api_key,
             "x-rapidapi-host": RAPIDAPI_HOST,
         }
@@ -258,6 +258,10 @@ class FootballClient:
                 return None
             response.raise_for_status()
             payload = response.json()
+            if payload.get("status") == "failed":
+                self.last_error = payload.get("message") or payload
+                log.warning("Sports API returned an error payload: %s", self.last_error)
+                return None
             errors = payload.get("errors")
             if errors not in (None, {}, []):
                 self.last_error = errors
@@ -290,33 +294,39 @@ class FootballClient:
         return rows
 
 
-def extract_1x2(bookmakers: list[dict]) -> dict[str, str | None] | None:
-    fallback = None
-    for bookmaker in bookmakers or []:
-        parsed = None
-        for bet in bookmaker.get("bets") or []:
-            name = (bet.get("name") or "").lower()
-            if name not in {"match winner", "1x2", "match result"}:
-                continue
-            odds = {"1": None, "X": None, "2": None}
-            for value in bet.get("values") or []:
-                label = (value.get("value") or "").lower()
-                odd = clamp_odd(value.get("odd"))
-                if label in {"home", "1"}:
-                    odds["1"] = odd
-                elif label in {"draw", "x"}:
-                    odds["X"] = odd
-                elif label in {"away", "2"}:
-                    odds["2"] = odd
-            if all(odds.values()):
-                parsed = odds
-                break
-        if not parsed:
-            continue
-        if bookmaker.get("id") == BET365_ID or (bookmaker.get("name") or "").lower() == "bet365":
-            return parsed
-        fallback = fallback or parsed
-    return fallback
+def extract_1x2(payload: dict | None) -> dict[str, str | None] | None:
+    odds = {"1": None, "X": None, "2": None}
+
+    def take(label: str, value) -> None:
+        key = label.strip().lower()
+        parsed = clamp_odd(value)
+        if key in {"1", "home", "home win"}:
+            odds["1"] = odds["1"] or parsed
+        elif key in {"x", "draw", "tie"}:
+            odds["X"] = odds["X"] or parsed
+        elif key in {"2", "away", "away win"}:
+            odds["2"] = odds["2"] or parsed
+
+    def walk(node, market: str) -> None:
+        if isinstance(node, dict):
+            market_name = str(node.get("marketName") or node.get("name") or node.get("title") or market).lower()
+            label = str(node.get("name") or node.get("value") or node.get("outcome") or node.get("label") or "")
+            price = node.get("oddsDecimal") or node.get("decimal") or node.get("odd") or node.get("price")
+            if isinstance(price, dict):
+                price = price.get("decimal") or price.get("odds")
+            interesting = any(word in market_name for word in ("1x2", "full time", "fulltime", "match winner", "match result"))
+            if interesting and label and not isinstance(price, (dict, list)):
+                take(label, price)
+            for child in node.values():
+                walk(child, market_name)
+        elif isinstance(node, list):
+            for child in node:
+                walk(child, market)
+
+    walk((payload or {}).get("response") or {}, "")
+    if all(odds.values()):
+        return odds
+    return None
 
 
 def map_status(short: str, score: dict, goals: dict) -> tuple[str, int, int] | None:
@@ -418,64 +428,126 @@ def push(db: Database, payload: dict) -> None:
     )
 
 
-def load_fixtures(client: FootballClient, db: Database, today) -> tuple[int, list[dict]] | None:
-    key = f"fixtures:{today.isoformat()}"
-    cached = db.rpc("read_api_cache", {"p_key": key})
-    if isinstance(cached, dict) and isinstance(cached.get("fixtures"), list):
-        if not cached["fixtures"]:
-            log.info("Today's fixture list is already stored and it is empty.")
+def division_id(round_name: str | None) -> int | None:
+    text = (round_name or "").lower()
+    if "nations league a" in text:
+        return 9806
+    if "nations league b" in text:
+        return 9807
+    if "nations league c" in text:
+        return 9808
+    if "nations league d" in text:
+        return 9809
+    return None
+
+
+def finished_state(status: dict) -> str:
+    if status.get("cancelled"):
+        return "cancelled"
+    reason = status.get("reason") if isinstance(status.get("reason"), dict) else {}
+    short = str((reason or {}).get("short") or "").upper()
+    if short in {"AET", "PEN", "ET", "AP"}:
+        return "extra"
+    if status.get("finished") or short == "FT":
+        return "finished"
+    if status.get("started"):
+        return "live"
+    return "upcoming"
+
+
+def payload_from_match(round_name: str, match: dict, *, confirm: bool = False) -> dict | None:
+    home = match.get("home") or {}
+    away = match.get("away") or {}
+    status = match.get("status") or {}
+    fixture_id = match.get("id")
+    kickoff = status.get("utcTime")
+    if not fixture_id or 900000 <= int(fixture_id) < 910000 or not kickoff or not home.get("name") or not away.get("name"):
+        return None
+    state = finished_state(status)
+    if confirm:
+        if state not in {"finished", "cancelled"}:
             return None
-        log.info("Using the fixture list already stored for %s.", today.isoformat())
-        return int(cached["season"]), cached["fixtures"]
-    start = (today - timedelta(days=1)).isoformat()
-    end = (today + timedelta(days=45)).isoformat()
-    seasons = []
-    for season in (today.year, today.year - 1, today.year - 2, 2024, 2023, 2022):
-        if season not in seasons:
-            seasons.append(season)
-    for season in seasons:
-        fixtures = client.get_pages(
-            "/fixtures",
-            {"league": LEAGUE_ID, "season": season, "from": start, "to": end},
-            "fixtures",
-        )
-        if fixtures is None:
-            message = str(client.last_error or "").lower()
-            if "suspended" in message or "token" in message or "key" in message:
-                log.warning("Sports API account cannot be used. Stopping so the reserved requests stay unused.")
-                client.stopped = True
-                db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": None, "fixtures": []}})
-                return None
-            if "season" in message or "plan" in message:
+    elif state == "cancelled":
+        confirm = True
+    else:
+        state = "upcoming"
+    home_score = int(home.get("score") or 0) if confirm else 0
+    away_score = int(away.get("score") or 0) if confirm else 0
+    return {
+        "p_fixture_id": int(fixture_id),
+        "p_home_team": hebrew_name(home["name"]),
+        "p_away_team": hebrew_name(away["name"]),
+        "p_home_flag": flag_url(home["name"], None),
+        "p_away_flag": flag_url(away["name"], None),
+        "p_match_time": kickoff,
+        "p_home_odds": None,
+        "p_draw_odds": None,
+        "p_away_odds": None,
+        "p_home_score": home_score,
+        "p_away_score": away_score,
+        "p_status": "cancelled" if state == "cancelled" else "finished" if confirm and state == "finished" else "upcoming",
+        "p_round_name": round_name,
+        "p_lock_odds": False,
+        "p_confirm_result": confirm,
+    }
+
+
+def matches_from_day(payload: dict | None) -> list[dict]:
+    rows = []
+    response = (payload or {}).get("response")
+    groups = response if isinstance(response, list) else []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        round_name = group.get("name") or ""
+        if "women" in round_name.lower() or "nations league" not in round_name.lower():
+            continue
+        for match in group.get("matches") or []:
+            built = payload_from_match(round_name, match)
+            if built:
+                rows.append(built)
+    return rows
+
+
+def load_fixtures(client: FootballClient, db: Database, today) -> list[dict] | None:
+    rows: list[dict] = []
+    for offset in range(FIXTURE_LOOKAHEAD_DAYS):
+        day = today + timedelta(days=offset)
+        stamp = day.strftime("%Y%m%d")
+        for league_id in NATIONS_LEAGUES:
+            cache_key = f"live-fixtures:{league_id}:{stamp}"
+            cached = db.rpc("read_api_cache", {"p_key": cache_key})
+            if isinstance(cached, list):
+                rows.extend(cached)
                 continue
             if client.stopped:
-                return None
-            return None
-        db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": season, "fixtures": fixtures}})
-        if fixtures:
-            log.info("Stored Nations League season %s (%s fixtures) for today.", season, len(fixtures))
-            return season, fixtures
-        log.info("Season %s is reachable and has no fixtures in today's window. Cached that result.", season)
-        return None
-    db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": None, "fixtures": []}})
-    log.info("No Nations League fixtures were available in today's window. The empty result is cached, so later runs today will not call the sports API for the fixture list.")
-    return None
+                return rows or None
+            payload = client.get(
+                "/football-get-matches-by-date-and-league",
+                {"date": stamp, "leagueid": league_id},
+                "fixtures",
+            )
+            if payload is None:
+                message = str(client.last_error or "").lower()
+                if "suspended" in message or "token" in message or "key" in message or "subscribed" in message:
+                    log.warning("Sports API account cannot be used. Stopping so the reserved requests stay unused.")
+                    client.stopped = True
+                return rows or None
+            parsed = matches_from_day(payload)
+            db.rpc("write_api_cache", {"p_key": cache_key, "p_payload": parsed})
+            rows.extend(parsed)
+    log.info("Nations League fixture list has %s matches in the next %s days.", len(rows), FIXTURE_LOOKAHEAD_DAYS)
+    return rows
 
 
 def upsert_catalogue(db: Database, fixtures: list[dict]) -> int:
     failures = 0
-    for fixture in fixtures:
-        fixture_id = (fixture.get("fixture") or {}).get("id")
-        if not fixture_id or int(fixture_id) >= 900000:
-            continue
-        payload = build_payload(fixture, None)
-        if not payload:
-            continue
+    for payload in fixtures:
         try:
             push(db, payload)
         except RuntimeError:
             failures += 1
-            log.exception("Could not store fixture %s", fixture_id)
+            log.exception("Could not store fixture %s", payload.get("p_fixture_id"))
     return failures
 
 
@@ -497,38 +569,29 @@ def rounds_ready_for_odds(games: list[dict], now: datetime) -> dict[str, list[di
     return ready
 
 
-def lock_odds(client: FootballClient, db: Database, season: int, games: list[dict], now: datetime) -> int:
+def lock_odds(client: FootballClient, db: Database, games: list[dict], now: datetime) -> int:
     failures = 0
-    for round_name, rows in rounds_ready_for_odds(games, now).items():
-        dates = sorted({parse_time(row["match_time"]).date().isoformat() for row in rows})
-        by_fixture: dict[int, dict[str, str | None]] = {}
-        for day in dates:
-            cache_key = f"odds:{season}:{round_name}:{day}"
-            cached = db.rpc("read_api_cache", {"p_key": cache_key})
-            rows_for_day = cached if isinstance(cached, list) else None
-            if rows_for_day is None:
-                rows_for_day = client.get_pages(
-                    "/odds",
-                    {"league": LEAGUE_ID, "season": season, "bookmaker": BET365_ID, "date": day},
-                    "odds",
-                )
-                if rows_for_day is None:
-                    return failures
-                db.rpc("write_api_cache", {"p_key": cache_key, "p_payload": rows_for_day})
-            for row in rows_for_day:
-                fixture_id = (row.get("fixture") or {}).get("id")
-                parsed = extract_1x2(row.get("bookmakers") or [])
-                if fixture_id and parsed:
-                    by_fixture[int(fixture_id)] = parsed
+    for _round_name, rows in rounds_ready_for_odds(games, now).items():
         for game in rows:
-            parsed = by_fixture.get(int(game["fixture_id"]))
+            cache_key = f"odds:{game['fixture_id']}"
+            cached = db.rpc("read_api_cache", {"p_key": cache_key})
+            if isinstance(cached, dict) and "parsed" in cached:
+                parsed = cached.get("parsed")
+            else:
+                if client.stopped:
+                    return failures
+                payload = client.get("/football-event-odds", {"eventid": game["fixture_id"]}, "odds")
+                if payload is None:
+                    return failures
+                parsed = extract_1x2(payload)
+                db.rpc("write_api_cache", {"p_key": cache_key, "p_payload": {"parsed": parsed}})
             if not parsed:
                 continue
-            payload = payload_from_game(
+            update = payload_from_game(
                 game, parsed, lock_odds=True, confirm=False, status="upcoming", home_score=0, away_score=0,
             )
             try:
-                push(db, payload)
+                push(db, update)
             except RuntimeError:
                 failures += 1
                 log.exception("Could not lock odds for fixture %s", game["fixture_id"])
@@ -536,37 +599,45 @@ def lock_odds(client: FootballClient, db: Database, season: int, games: list[dic
 
 
 def confirm_results(client: FootballClient, db: Database, games: list[dict], now: datetime) -> int:
-    due = []
+    due_keys: dict[tuple[int, str], None] = {}
     for game in games:
         if game.get("result_confirmed") or game.get("status") in {"finished", "cancelled"}:
             continue
-        if not game.get("fixture_id") or int(game["fixture_id"]) >= 900000 or not game.get("match_time"):
+        if not game.get("fixture_id") or 900000 <= int(game["fixture_id"]) < 910000 or not game.get("match_time"):
             continue
-        if now >= parse_time(game["match_time"]) + timedelta(minutes=105):
-            due.append(game)
+        kick = parse_time(game["match_time"])
+        if now < kick + timedelta(minutes=105):
+            continue
+        league_id = division_id(game.get("round_name"))
+        if league_id is None:
+            continue
+        due_keys[(league_id, kick.strftime("%Y%m%d"))] = None
     failures = 0
-    for offset in range(0, len(due), 20):
-        chunk = due[offset:offset + 20]
-        body = client.get("/fixtures", {"ids": "-".join(str(game["fixture_id"]) for game in chunk)}, "results")
-        if body is None:
+    for league_id, stamp in due_keys:
+        if client.stopped:
             return failures
-        by_id = {
-            int((row.get("fixture") or {}).get("id")): row
-            for row in body.get("response") or []
-            if (row.get("fixture") or {}).get("id")
-        }
-        for game in chunk:
-            fixture = by_id.get(int(game["fixture_id"]))
-            if not fixture:
+        payload = client.get(
+            "/football-get-matches-by-date-and-league",
+            {"date": stamp, "leagueid": league_id},
+            "results",
+        )
+        if payload is None:
+            return failures
+        response = payload.get("response")
+        groups = response if isinstance(response, list) else []
+        for group in groups:
+            if not isinstance(group, dict):
                 continue
-            payload = build_payload(fixture, None, confirm=True)
-            if not payload:
-                continue
-            try:
-                push(db, payload)
-            except RuntimeError:
-                failures += 1
-                log.exception("Could not confirm fixture %s", game["fixture_id"])
+            round_name = group.get("name") or ""
+            for match in group.get("matches") or []:
+                built = payload_from_match(round_name, match, confirm=True)
+                if not built:
+                    continue
+                try:
+                    push(db, built)
+                except RuntimeError:
+                    failures += 1
+                    log.exception("Could not confirm fixture %s", built["p_fixture_id"])
     return failures
 
 
@@ -585,13 +656,12 @@ def main() -> int:
     db = Database(url, service_key)
     client = FootballClient(api_key, db)
     now = datetime.now(timezone.utc)
-    chosen = load_fixtures(client, db, now.date())
+    fixtures = load_fixtures(client, db, now.date())
     failures = 0
-    if chosen:
-        season, fixtures = chosen
+    if fixtures:
         failures += upsert_catalogue(db, fixtures)
         if not client.stopped:
-            failures += lock_odds(client, db, season, db.games(), now)
+            failures += lock_odds(client, db, db.games(), now)
     if not client.stopped:
         failures += confirm_results(client, db, db.games(), now)
     if failures:

@@ -16,6 +16,7 @@ import requests
 log = logging.getLogger("nations-sync")
 
 API_BASE = "https://v3.football.api-sports.io"
+RAPIDAPI_HOST = "api-football-v1.p.rapidapi.com"
 LEAGUE_ID = 5
 BET365_ID = 8
 PLACEHOLDERS = {"", "YOUR_SPORTS_API_KEY_HERE"}
@@ -215,13 +216,23 @@ class Database:
         return response.json()
 
 
+def sports_connection(api_key: str) -> tuple[str, dict[str, str]]:
+    if "msh" in api_key and "jsn" in api_key:
+        return f"https://{RAPIDAPI_HOST}/v3", {
+            "x-rapidapi-key": api_key,
+            "x-rapidapi-host": RAPIDAPI_HOST,
+        }
+    return API_BASE, {"x-apisports-key": api_key}
+
+
 class FootballClient:
     def __init__(self, api_key: str, db: Database):
         self.db = db
         self.stopped = False
         self.last_error = None
+        self.base, headers = sports_connection(api_key)
         self.session = requests.Session()
-        self.session.headers.update({"x-apisports-key": api_key})
+        self.session.headers.update(headers)
 
     def get(self, path: str, params: dict, purpose: str) -> dict | None:
         if self.stopped:
@@ -234,10 +245,12 @@ class FootballClient:
             return None
         status = None
         try:
-            response = self.session.get(f"{API_BASE}{path}", params=params, timeout=40)
+            response = self.session.get(f"{self.base}{path}", params=params, timeout=40)
             status = response.status_code
             if response.status_code in (401, 403):
+                self.last_error = {"key": response.text[:180]}
                 log.warning("Sports API rejected the key (HTTP %s). Existing games were left as they are.", response.status_code)
+                self.stopped = True
                 return None
             if response.status_code == 429:
                 log.warning("Sports API rate limit reached. Stopping this run.")
@@ -426,8 +439,6 @@ def load_fixtures(client: FootballClient, db: Database, today) -> tuple[int, lis
             {"league": LEAGUE_ID, "season": season, "from": start, "to": end},
             "fixtures",
         )
-        if client.stopped:
-            return None
         if fixtures is None:
             message = str(client.last_error or "").lower()
             if "suspended" in message or "token" in message or "key" in message:
@@ -437,6 +448,8 @@ def load_fixtures(client: FootballClient, db: Database, today) -> tuple[int, lis
                 return None
             if "season" in message or "plan" in message:
                 continue
+            if client.stopped:
+                return None
             return None
         db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": season, "fixtures": fixtures}})
         if fixtures:

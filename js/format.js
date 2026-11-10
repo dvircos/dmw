@@ -48,3 +48,9 @@ export function canBet(game) {
   const kick = new Date(game.match_time).getTime();
   return kick > Date.now() + 5 * 60 * 1000;
 }
+
+export function canEdit(bet) {
+  const game = bet?.games;
+  if (!bet || bet.status !== "pending" || !game?.match_time) return false;
+  return new Date(game.match_time).getTime() > Date.now();
+}

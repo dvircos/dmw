@@ -56,6 +56,23 @@ export function canEdit(bet) {
   return new Date(game.match_time).getTime() > Date.now();
 }
 
+export function leagueTier(game) {
+  const name = String(game?.round_name || "");
+  const match = name.match(/nations league\s+([abcd])/i);
+  return match ? match[1].toUpperCase() : "";
+}
+
+export function countdownLabel(game, now = Date.now()) {
+  if (!game || game.status !== "upcoming" || !game.match_time) return "";
+  const remaining = new Date(game.match_time).getTime() - now;
+  if (remaining <= 0 || remaining > 6 * 60 * 60 * 1000) return "";
+  const minutes = Math.max(1, Math.ceil(remaining / 60000));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours > 0) return `עוד ${hours} שע׳ ו־${rest} דק׳`;
+  return `עוד ${rest} דק׳`;
+}
+
 export function canCancel(bet) {
   const game = bet?.games;
   if (!bet || bet.status !== "pending" || game?.status !== "upcoming" || !game.match_time) return false;

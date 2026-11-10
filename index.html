@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#06101c" />
+    <meta name="description" content="מרדכי ווינרים — הדמיית הימורים וירטואלית על ליגת האומות" />
+    <title>מרדכי ווינרים - ליגת האומות</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: { sans: ["Rubik", "sans-serif"] },
+            colors: {
+              ink: "#06101c",
+              panel: "#122033",
+              gold: "#e7b65a",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body { font-family: Rubik, sans-serif; background: #06101c; }
+      .flash { animation: flash 0.6s ease; }
+      @keyframes flash { from { transform: scale(1.06); } to { transform: scale(1); } }
+      .live-dot { animation: pulse 1.2s ease-in-out infinite; }
+      @keyframes pulse { 50% { opacity: 0.35; } }
+      #sheet.open { transform: translateY(0); }
+    </style>
+  </head>
+  <body class="min-h-screen bg-ink text-slate-100">
+    <div id="toasts" class="fixed top-3 z-[80] w-[min(32rem,calc(100%-1.5rem))] left-1/2 -translate-x-1/2"></div>
+
+    <section id="auth-view" class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
+      <div class="mb-8 text-center">
+        <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gold text-3xl font-extrabold text-ink">מ</div>
+        <h1 class="text-3xl font-extrabold">מרדכי ווינרים</h1>
+        <p class="mt-1 text-gold">ליגת האומות</p>
+        <p class="mt-3 text-sm leading-6 text-slate-400">משחק פרטי לחברים ולמשפחה. היתרה וירטואלית ואינה כסף אמיתי.</p>
+      </div>
+      <div class="rounded-3xl border border-white/10 bg-panel p-5 shadow-2xl">
+        <div class="mb-4 grid grid-cols-2 rounded-2xl bg-black/30 p-1 text-sm">
+          <button id="tab-login" type="button" class="rounded-xl bg-gold py-2 font-bold text-ink">התחברות</button>
+          <button id="tab-signup" type="button" class="rounded-xl py-2 font-medium text-slate-300">הרשמה</button>
+        </div>
+        <form id="auth-form" class="space-y-3">
+          <label id="username-wrap" class="hidden block text-sm">
+            <span class="mb-1 block text-slate-300">שם משתמש</span>
+            <input id="username" maxlength="24" class="w-full rounded-2xl border border-white/10 bg-ink px-4 py-3 text-base outline-none focus:border-gold" />
+          </label>
+          <label class="block text-sm">
+            <span class="mb-1 block text-slate-300">אימייל</span>
+            <input id="email" type="email" autocomplete="email" required class="w-full rounded-2xl border border-white/10 bg-ink px-4 py-3 text-base outline-none focus:border-gold" dir="ltr" />
+          </label>
+          <label class="block text-sm">
+            <span class="mb-1 block text-slate-300">סיסמה</span>
+            <input id="password" type="password" minlength="6" autocomplete="current-password" required class="w-full rounded-2xl border border-white/10 bg-ink px-4 py-3 text-base outline-none focus:border-gold" dir="ltr" />
+          </label>
+          <button id="auth-submit" type="submit" class="w-full rounded-2xl bg-gold py-3 text-base font-extrabold text-ink">כניסה</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="app-view" class="hidden mx-auto min-h-screen max-w-xl pb-28">
+      <header class="sticky top-0 z-30 border-b border-white/10 bg-ink/90 px-4 py-3 backdrop-blur">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-lg font-extrabold leading-5">מרדכי ווינרים</p>
+            <p class="text-xs text-gold">ליגת האומות · יתרה וירטואלית</p>
+            <p id="hello" class="mt-1 text-xs text-slate-400"></p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="refresh" type="button" class="rounded-full border border-white/10 px-3 py-2 text-xs text-slate-300">רענון</button>
+            <div class="rounded-2xl bg-panel px-3 py-2 text-left" dir="ltr">
+              <span id="balance" class="text-lg font-extrabold text-gold">0.00</span>
+              <span class="text-xs text-slate-400">₪</span>
+            </div>
+            <button id="logout" type="button" class="rounded-full px-2 py-2 text-xs text-slate-400">יציאה</button>
+          </div>
+        </div>
+      </header>
+
+      <main class="px-4 py-4">
+        <section id="view-games"></section>
+        <section id="view-bets" class="hidden"></section>
+        <section id="view-board" class="hidden"></section>
+      </main>
+
+      <nav class="fixed bottom-0 left-1/2 z-40 w-full max-w-xl -translate-x-1/2 border-t border-white/10 bg-[#071422]/95 backdrop-blur">
+        <div class="grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+          <button type="button" data-tab="games" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-gold">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.5 2.8 2.5 15.2 0 18M12 3c-2.5 2.8-2.5 15.2 0 18M3 12h18"/></svg>
+            משחקים
+          </button>
+          <button type="button" data-tab="bets" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-slate-400">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v16l-3-2-3 2-3-2-3 2z"/><path d="M9 9h6M9 13h4"/></svg>
+            הימורים
+          </button>
+          <button type="button" data-tab="board" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-slate-400">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M4 19h16"/></svg>
+            טבלה
+          </button>
+        </div>
+      </nav>
+    </section>
+
+    <div id="sheet-backdrop" class="hidden fixed inset-0 z-50 bg-black/60"></div>
+    <aside id="sheet" class="fixed bottom-0 left-1/2 z-50 w-full max-w-xl -translate-x-1/2 translate-y-full rounded-t-3xl border border-white/10 bg-[#0d1a2c] p-5 transition duration-300">
+      <div class="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/20"></div>
+      <p id="sheet-match" class="text-lg font-extrabold"></p>
+      <p id="sheet-selection" class="mt-1 text-sm text-slate-300"></p>
+      <p class="mt-1 text-xs text-slate-500">היחס והתשלום נקבעים בשרת לפי הנתונים בזמן השליחה. ההימור ננעל 5 דקות לפני הפתיחה.</p>
+      <div class="mt-4 grid grid-cols-4 gap-2">
+        <button type="button" data-stake="10" class="stake rounded-xl bg-white/5 py-2 text-sm">10</button>
+        <button type="button" data-stake="25" class="stake rounded-xl bg-white/5 py-2 text-sm">25</button>
+        <button type="button" data-stake="50" class="stake rounded-xl bg-white/5 py-2 text-sm">50</button>
+        <button type="button" data-stake="100" class="stake rounded-xl bg-white/5 py-2 text-sm">100</button>
+      </div>
+      <label class="mt-4 block text-sm">
+        <span class="mb-1 block text-slate-300">סכום וירטואלי</span>
+        <input id="stake" inputmode="decimal" value="25" class="w-full rounded-2xl border border-white/10 bg-ink px-4 py-3 text-base outline-none focus:border-gold" dir="ltr" />
+      </label>
+      <p class="mt-3 text-sm text-slate-300">תשלום אפשרי: <span id="sheet-payout" class="font-extrabold text-gold" dir="ltr">0.00</span> ₪</p>
+      <div class="mt-4 grid grid-cols-2 gap-2 pb-[env(safe-area-inset-bottom)]">
+        <button id="sheet-cancel" type="button" class="rounded-2xl border border-white/10 py-3">ביטול</button>
+        <button id="sheet-confirm" type="button" class="rounded-2xl bg-gold py-3 font-extrabold text-ink">אישור הימור</button>
+      </div>
+    </aside>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>

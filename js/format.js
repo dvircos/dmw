@@ -34,6 +34,7 @@ export const BET_STATUS = {
   won: "זכייה",
   lost: "הפסד",
   void: "בוטל",
+  cancelled: "בוטל",
 };
 
 export const SELECTION = {
@@ -52,5 +53,11 @@ export function canBet(game) {
 export function canEdit(bet) {
   const game = bet?.games;
   if (!bet || bet.status !== "pending" || !game?.match_time) return false;
+  return new Date(game.match_time).getTime() > Date.now();
+}
+
+export function canCancel(bet) {
+  const game = bet?.games;
+  if (!bet || bet.status !== "pending" || game?.status !== "upcoming" || !game.match_time) return false;
   return new Date(game.match_time).getTime() > Date.now();
 }

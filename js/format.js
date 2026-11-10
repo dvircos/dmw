@@ -50,16 +50,42 @@ export function canBet(game) {
   return kick > Date.now() + 5 * 60 * 1000;
 }
 
+export function slipLegs(bet) {
+  if (Array.isArray(bet?.bet_items) && bet.bet_items.length) return bet.bet_items;
+  if (bet?.game_id) {
+    return [{
+      game_id: bet.game_id,
+      bet_selection: bet.bet_selection,
+      odds: bet.odds,
+      status: bet.status,
+      games: bet.games,
+    }];
+  }
+  return [];
+}
+
+export function combinedOdds(prices) {
+  return prices.reduce((product, price) => product * Number(price || 0), 1);
+}
+
 export function canEdit(bet) {
-  const game = bet?.games;
-  if (!bet || bet.status !== "pending" || !game?.match_time) return false;
+  const legs = slipLegs(bet);
+  const game = legs[0]?.games || bet?.games;
+  if (!bet || bet.status !== "pending" || legs.length !== 1 || !game?.match_time) return false;
   return new Date(game.match_time).getTime() > Date.now();
 }
 
-export function leagueTier(game) {
+export function leagueKey(game) {
   const name = String(game?.round_name || "");
-  const match = name.match(/nations league\s+([abcd])/i);
-  return match ? match[1].toUpperCase() : "";
+  const code = name.split("|")[0];
+  if (["israel", "ucl", "spain", "england", "nations"].includes(code)) return code;
+  const text = name.toLowerCase();
+  if (text.includes("nations league") || text.includes("אומות")) return "nations";
+  if (text.includes("champions league") || text.includes("צ'מפיונס")) return "ucl";
+  if (text.includes("la liga") || text.includes("laliga") || text.includes("ספרד")) return "spain";
+  if (text.includes("premier league") || text.includes("אנגליה")) return "england";
+  if (text.includes("israeli") || text.includes("ליגת העל")) return "israel";
+  return "";
 }
 
 export function countdownLabel(game, now = Date.now()) {
@@ -74,7 +100,10 @@ export function countdownLabel(game, now = Date.now()) {
 }
 
 export function canCancel(bet) {
-  const game = bet?.games;
-  if (!bet || bet.status !== "pending" || game?.status !== "upcoming" || !game.match_time) return false;
-  return new Date(game.match_time).getTime() > Date.now();
+  const legs = slipLegs(bet);
+  if (!bet || bet.status !== "pending" || !legs.length) return false;
+  return legs.every((leg) => {
+    const game = leg.games || bet.games;
+    return game?.status === "upcoming" && game.match_time && new Date(game.match_time).getTime() > Date.now();
+  });
 }

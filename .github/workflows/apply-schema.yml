@@ -1,0 +1,24 @@
+name: Apply database schema
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install database client
+        run: pip install psycopg2-binary requests pynacl
+      - name: Apply schema.sql
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: python -c "import os, deploy_agent; deploy_agent.apply_schema(os.environ['SUPABASE_URL'], os.environ['SUPABASE_DB_PASSWORD'])"

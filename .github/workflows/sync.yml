@@ -1,10 +1,9 @@
-name: Sync Nations League
+name: Sync leagues
 
 on:
   schedule:
-    # Checks often, but the job calls the sports API only when a fixture,
-    # odds lock, or final result is actually due. Quota is enforced in the database.
-    - cron: "*/15 * * * *"
+    # One daily run. main.py spends at most five sports calls, one per league.
+    - cron: "15 4 * * *"
   workflow_dispatch:
 
 permissions:

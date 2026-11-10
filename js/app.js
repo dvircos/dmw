@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
-import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, countdownLabel, leagueTier, money, when } from "./format.js";
+import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, countdownLabel, leagueKey, money, slipLegs, when } from "./format.js";
 import { toast } from "./toast.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -15,9 +15,12 @@ const state = {
   selected: null,
   submitting: false,
   channel: null,
-  league: "A",
+  league: "all",
+  slipTab: "combined",
   query: "",
   clock: null,
+  slip: [],
+  slipOpen: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -54,7 +57,7 @@ function flag(url) {
 function empty(parent, text) {
   parent.replaceChildren();
   const p = document.createElement("p");
-  p.className = "rounded-3xl border border-dashed border-white/10 px-4 py-10 text-center text-sm text-slate-400";
+  p.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-10 text-center text-sm text-mist";
   p.textContent = text;
   parent.appendChild(p);
 }
@@ -79,13 +82,19 @@ function paintLeagueTabs() {
     button.classList.toggle("font-bold", active);
     button.classList.toggle("text-ink", active);
     button.classList.toggle("font-medium", !active);
-    button.classList.toggle("text-slate-300", !active);
+    button.classList.toggle("text-mist", !active);
   });
+}
+
+function coversGame(bet, game) {
+  if (bet.status !== "pending") return false;
+  if (Array.isArray(bet.bet_items) && bet.bet_items.some((item) => Number(item.game_id) === Number(game.id))) return true;
+  return Number(bet.game_id) === Number(game.id);
 }
 
 function pendingStake(game) {
   return state.bets
-    .filter((bet) => bet.status === "pending" && Number(bet.game_id) === Number(game.id))
+    .filter((bet) => coversGame(bet, game))
     .reduce((sum, bet) => sum + Number(bet.bet_amount || 0), 0);
 }
 
@@ -94,7 +103,7 @@ function renderGames() {
   const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
   const query = state.query.trim().toLowerCase();
   const games = state.games
-    .filter((game) => leagueTier(game) === state.league)
+    .filter((game) => state.league === "all" || leagueKey(game) === state.league)
     .filter((game) => {
       if (!query) return true;
       return `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query);
@@ -105,13 +114,13 @@ function renderGames() {
       return new Date(a.match_time) - new Date(b.match_time);
     });
   if (!games.length) {
-    empty(root, query ? "לא נמצאה קבוצה בליגה הזו" : "אין משחקים בליגה הזו");
+    empty(root, query ? "לא נמצאה קבוצה" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו");
     return;
   }
   root.replaceChildren();
   games.forEach((game) => {
     const card = document.createElement("article");
-    card.className = "mb-3 rounded-3xl border border-white/10 bg-panel p-4";
+    card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
     const head = document.createElement("div");
     head.className = "mb-3 flex items-center justify-between text-xs text-slate-400";
     const time = document.createElement("span");
@@ -153,18 +162,19 @@ function renderGames() {
     [["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]].forEach(([selection, price]) => {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "rounded-2xl bg-black/30 px-2 py-2 text-center disabled:opacity-40";
+      const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && leg.selection === selection);
+      button.className = `rounded-2xl border px-2 py-2 text-center disabled:opacity-40 ${picked ? "border-gold bg-gold/20 ring-2 ring-gold" : "border-slate-700/50 bg-ink/60"}`;
       button.disabled = !open;
       const label = document.createElement("div");
       label.className = "text-[11px] text-slate-400";
       label.textContent = selection === "1" ? "1 בית" : selection === "2" ? "2 חוץ" : "X תיקו";
       const value = document.createElement("div");
-      value.className = "text-base font-extrabold text-emerald-300";
+      value.className = "text-base font-extrabold text-mint";
       value.dir = "ltr";
       value.textContent = price ? Number(price).toFixed(2) : "—";
       button.append(label, value);
       if (open) {
-        button.addEventListener("click", () => openSheet(game, selection, price));
+        button.addEventListener("click", () => toggleSlip(game, selection, price));
       }
       odds.append(button);
     });
@@ -174,7 +184,7 @@ function renderGames() {
       const openBet = document.createElement("p");
       openBet.className = "mt-3 inline-flex rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold";
       const shown = Number.isInteger(stake) ? String(stake) : money(stake);
-      openBet.textContent = `המרת ${shown} נק׳`;
+      openBet.textContent = `המרת ₪${shown}`;
       card.append(openBet);
     }
     card.append(odds);
@@ -200,48 +210,66 @@ function renderBets() {
   }
   root.replaceChildren();
   state.bets.forEach((bet) => {
-    const game = bet.games || {};
+    const legs = slipLegs(bet);
+    const game = legs[0]?.games || bet.games || {};
     const card = document.createElement("article");
-    card.className = "mb-3 rounded-3xl border border-white/10 bg-panel p-4";
+    card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
     const title = document.createElement("p");
     title.className = "font-bold";
-    title.textContent = `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
+    title.textContent = legs.length > 1
+      ? `טופס משולב · ${legs.length} משחקים`
+      : `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
+    card.append(title);
+    if (legs.length > 1) {
+      legs.forEach((leg) => {
+        const row = document.createElement("p");
+        row.className = "mt-1 text-sm text-slate-300";
+        const match = leg.games || {};
+        const legStatus = bet.status === "pending" || bet.status === "won" || bet.status === "lost" ? ` · ${BET_STATUS[leg.status] || ""}` : "";
+        row.textContent = `${match.home_team || "משחק"} נגד ${match.away_team || ""} · ${SELECTION[leg.bet_selection] || leg.bet_selection} · ${Number(leg.odds).toFixed(2)}${legStatus}`;
+        card.append(row);
+      });
+    }
     const meta = document.createElement("p");
     meta.className = "mt-1 text-sm text-slate-300";
-    meta.textContent = `${when(game.match_time)} · ${SELECTION[bet.bet_selection] || bet.bet_selection} · יחס ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`;
+    meta.textContent = legs.length > 1
+      ? `יחס משולב ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`
+      : `${when(game.match_time)} · ${SELECTION[bet.bet_selection || legs[0]?.bet_selection] || ""} · יחס ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`;
     const foot = document.createElement("div");
     foot.className = "mt-2 flex items-center justify-between text-sm";
     const payout = document.createElement("span");
     payout.dir = "ltr";
     payout.textContent = `₪${money(bet.potential_payout)}`;
     const status = document.createElement("span");
-    status.className = bet.status === "won" ? "font-bold text-emerald-300" : bet.status === "lost" || bet.status === "cancelled" ? "text-rose-300" : "text-gold";
+    status.className = bet.status === "won" ? "font-bold text-mint" : bet.status === "lost" || bet.status === "cancelled" ? "text-rose-300" : "text-gold";
     status.textContent = BET_STATUS[bet.status] || bet.status;
     foot.append(payout, status);
-    card.append(title, meta, foot);
+    card.append(meta, foot);
     if (bet.status === "pending") {
       const editable = canEdit(bet);
       const cancellable = canCancel(bet);
       const actions = document.createElement("div");
-      actions.className = "mt-3 grid grid-cols-2 gap-2";
-      const edit = document.createElement("button");
-      edit.type = "button";
-      edit.className = "rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
-      edit.textContent = editable ? "עריכת הימור" : "ההימור נעול";
-      edit.disabled = !editable;
-      if (editable) {
-        edit.addEventListener("click", () => openSheet(game, bet.bet_selection, bet.odds, bet));
+      actions.className = legs.length > 1 ? "mt-3" : "mt-3 grid grid-cols-2 gap-2";
+      if (legs.length === 1) {
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
+        edit.textContent = editable ? "עריכת הימור" : "ההימור נעול";
+        edit.disabled = !editable;
+        if (editable) {
+          edit.addEventListener("click", () => openSheet(game, bet.bet_selection || legs[0].bet_selection, bet.odds, bet));
+        }
+        actions.append(edit);
       }
-      actions.append(edit);
       if (cancellable) {
         const cancel = document.createElement("button");
         cancel.type = "button";
-        cancel.className = "rounded-2xl border border-rose-400/40 py-2 text-sm font-bold text-rose-300";
+        cancel.className = "w-full rounded-2xl border border-rose-400/40 py-2 text-sm font-bold text-rose-300";
         cancel.textContent = "בטל הימור";
         cancel.addEventListener("click", () => cancelBet(bet));
         actions.append(cancel);
       }
-      card.append(actions);
+      if (actions.childElementCount) card.append(actions);
     }
     root.append(card);
   });
@@ -280,6 +308,121 @@ function render() {
   renderGames();
   renderBets();
   renderBoard();
+  renderSlip();
+}
+
+function slipTotal() {
+  return state.slip.reduce((product, leg) => product * Number(leg.odds || 0), 1);
+}
+
+function slipRow(leg, extra) {
+  const row = document.createElement("div");
+  row.className = "mb-2 flex items-center justify-between gap-2 rounded-2xl border border-slate-700/50 bg-ink/60 px-3 py-2";
+  const text = document.createElement("div");
+  text.className = "min-w-0 flex-1";
+  const name = document.createElement("p");
+  name.className = "truncate text-sm font-bold text-slate-50";
+  name.textContent = `${leg.home} נגד ${leg.away}`;
+  const meta = document.createElement("p");
+  meta.className = "text-xs text-mist";
+  meta.textContent = `${SELECTION[leg.selection]} · ${Number(leg.odds).toFixed(2)}`;
+  text.append(name, meta);
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "shrink-0 px-1 text-base text-rose-300";
+  remove.textContent = "✖";
+  remove.addEventListener("click", () => {
+    state.slip = state.slip.filter((item) => item.gameId !== leg.gameId);
+    renderSlip();
+    renderGames();
+  });
+  row.append(text);
+  if (extra) row.append(extra);
+  row.append(remove);
+  return row;
+}
+
+function paintSlipTabs() {
+  const combined = state.slipTab === "combined";
+  $("slip-tab-combined").className = combined
+    ? "rounded-xl bg-gold py-2 font-bold text-ink"
+    : "rounded-xl py-2 font-medium text-mist";
+  $("slip-tab-singles").className = combined
+    ? "rounded-xl py-2 font-medium text-mist"
+    : "rounded-xl bg-gold py-2 font-bold text-ink";
+  $("slip-combined").classList.toggle("hidden", !combined);
+  $("slip-singles").classList.toggle("hidden", combined);
+  $("slip-confirm").textContent = combined ? "אישור משולב" : "אישור נפרדים";
+}
+
+function renderSlip() {
+  const slip = $("slip");
+  const backdrop = $("slip-backdrop");
+  const app = $("app-view");
+  if (!state.slip.length) {
+    slip.classList.add("hidden");
+    backdrop.classList.add("hidden");
+    state.slipOpen = false;
+    app.classList.remove("pb-44");
+    app.classList.add("pb-28");
+    return;
+  }
+  slip.classList.remove("hidden");
+  app.classList.remove("pb-28");
+  app.classList.add("pb-44");
+  const total = slipTotal();
+  $("slip-count").textContent = String(state.slip.length);
+  $("slip-odds").textContent = total.toFixed(2);
+  backdrop.classList.toggle("hidden", !state.slipOpen);
+  paintSlipTabs();
+  const combined = $("slip-combined-legs");
+  combined.replaceChildren();
+  const singles = $("slip-single-legs");
+  singles.replaceChildren();
+  state.slip.forEach((leg) => {
+    combined.append(slipRow(leg));
+    const stake = document.createElement("input");
+    stake.inputMode = "decimal";
+    stake.dir = "ltr";
+    stake.value = leg.stake || "25";
+    stake.className = "w-20 rounded-xl border border-slate-700/50 bg-ink px-2 py-2 text-center text-sm text-slate-50 outline-none focus:border-gold";
+    stake.addEventListener("input", () => {
+      leg.stake = stake.value;
+      updateSinglesTotal();
+    });
+    singles.append(slipRow(leg, stake));
+  });
+  const amount = Number($("slip-stake").value);
+  $("slip-total").textContent = total.toFixed(2);
+  $("slip-payout").textContent = money(Number.isFinite(amount) && amount > 0 ? amount * total : 0);
+  updateSinglesTotal();
+}
+
+function updateSinglesTotal() {
+  const total = state.slip.reduce((sum, leg) => {
+    const amount = Number(leg.stake || 0);
+    return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+  }, 0);
+  const node = $("slip-singles-total");
+  if (node) node.textContent = money(total);
+}
+
+function toggleSlip(game, selection, price) {
+  const gameId = Number(game.id);
+  const index = state.slip.findIndex((leg) => leg.gameId === gameId);
+  if (index >= 0 && state.slip[index].selection === selection) {
+    state.slip.splice(index, 1);
+  } else if (index >= 0) {
+    state.slip[index] = { ...state.slip[index], selection, odds: Number(price), home: game.home_team, away: game.away_team };
+  } else {
+    if (state.slip.length >= 8) {
+      toast("אפשר עד 8 משחקים בטופס");
+      return;
+    }
+    state.slip.push({ gameId, selection, odds: Number(price), home: game.home_team, away: game.away_team, stake: "25" });
+  }
+  renderSlip();
+  renderGames();
 }
 
 function oddsFor(game, selection) {
@@ -303,12 +446,12 @@ function renderSheetPicks(game, bet) {
     const button = document.createElement("button");
     button.type = "button";
     button.disabled = !Number.isFinite(price) || price < 1.01;
-    button.className = "rounded-2xl bg-black/30 px-2 py-2 text-center disabled:opacity-40";
+    button.className = "rounded-2xl border border-slate-700/50 bg-ink/60 px-2 py-2 text-center disabled:opacity-40";
     const label = document.createElement("div");
     label.className = "text-[11px] text-slate-400";
     label.textContent = selection === "1" ? "1 בית" : selection === "2" ? "2 חוץ" : "X תיקו";
     const value = document.createElement("div");
-    value.className = "text-base font-extrabold text-emerald-300";
+    value.className = "text-base font-extrabold text-mint";
     value.dir = "ltr";
     value.textContent = Number.isFinite(price) ? price.toFixed(2) : "—";
     button.append(label, value);
@@ -344,9 +487,7 @@ function openSheet(game, selection, price, bet = null) {
   };
   $("sheet-match").textContent = state.selected.label;
   $("sheet-selection").textContent = `${SELECTION[selection]} · יחס ${bet ? "נעול" : "מוצג"} ${Number(price).toFixed(2)}`;
-  $("sheet-note").textContent = bet
-    ? "עריכה מעדכנת את אותו הימור עד שעת הפתיחה. היחס נשאר נעול, ומחליפים אותו רק אם משנים בחירה."
-    : "היחס והתשלום נקבעים בשרת לפי הנתונים בזמן השליחה. הימור חדש ננעל 5 דקות לפני הפתיחה.";
+  $("sheet-note").textContent = "";
   $("sheet-confirm").textContent = bet ? "עדכון הימור" : "אישור הימור";
   $("sheet-balance").classList.toggle("hidden", !bet);
   if (bet) $("stake").value = String(bet.bet_amount);
@@ -386,7 +527,7 @@ async function refreshBets() {
   if (!state.user) return;
   const { data, error } = await supabase
     .from("bets")
-    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds)")
+    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
     .limit(1000);
@@ -466,6 +607,9 @@ function leaveApp() {
   state.clock = null;
   state.channel = null;
   state.user = null;
+  state.slip = [];
+  state.slipOpen = false;
+  renderSlip();
   $("app-view").classList.add("hidden");
   $("auth-view").classList.remove("hidden");
   closeSheet();
@@ -532,6 +676,60 @@ async function cancelBet(bet) {
     await refreshBets();
   } finally {
     state.submitting = false;
+  }
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value) * 100) / 100;
+}
+
+async function submitTicket(legs, amount) {
+  const { data, error } = await supabase.rpc("place_parlay", {
+    p_legs: legs.map((leg) => ({ game_id: leg.gameId, selection: leg.selection })),
+    p_amount: amount,
+  });
+  if (error) return { error };
+  return { data };
+}
+
+async function placeSlip() {
+  if (!state.slip.length || state.submitting) return;
+  const combined = state.slipTab === "combined";
+  const tickets = combined
+    ? [{ legs: state.slip, amount: roundMoney($("slip-stake").value) }]
+    : state.slip.map((leg) => ({ legs: [leg], amount: roundMoney(leg.stake) }));
+  if (tickets.some((ticket) => !Number.isFinite(ticket.amount) || ticket.amount <= 0)) {
+    toast("הזינו סכום גדול מאפס", "error");
+    return;
+  }
+  const needed = tickets.reduce((sum, ticket) => sum + ticket.amount, 0);
+  if (roundMoney(needed) > state.balance) {
+    toast("יתרה לא מספיקה", "error");
+    return;
+  }
+  state.submitting = true;
+  $("slip-confirm").disabled = true;
+  const placed = new Set();
+  try {
+    for (const ticket of tickets) {
+      const { data, error } = await submitTicket(ticket.legs, ticket.amount);
+      if (error) {
+        toast(cleanError(error), "error");
+        break;
+      }
+      ticket.legs.forEach((leg) => placed.add(leg.gameId));
+      setBalance(data.balance);
+      const totalOdds = Number(data.total_odds ?? data.odds);
+      toast(`נקלט · יחס ${totalOdds.toFixed(2)} · ₪${money(data.potential_payout)}`);
+    }
+    state.slip = state.slip.filter((leg) => !placed.has(leg.gameId));
+    if (!state.slip.length) state.slipOpen = false;
+    renderSlip();
+    renderGames();
+    if (placed.size) await refreshBets();
+  } finally {
+    state.submitting = false;
+    $("slip-confirm").disabled = false;
   }
 }
 
@@ -608,6 +806,31 @@ $("sheet-cancel").addEventListener("click", closeSheet);
 $("sheet").addEventListener("click", (event) => event.stopPropagation());
 $("sheet-backdrop").addEventListener("click", closeSheet);
 $("sheet-confirm").addEventListener("click", placeBet);
+$("slip-toggle").addEventListener("click", () => {
+  state.slipOpen = true;
+  renderSlip();
+});
+$("slip-drawer").addEventListener("click", (event) => event.stopPropagation());
+$("slip-backdrop").addEventListener("click", () => {
+  state.slipOpen = false;
+  renderSlip();
+});
+$("slip-tab-combined").addEventListener("click", () => {
+  state.slipTab = "combined";
+  renderSlip();
+});
+$("slip-tab-singles").addEventListener("click", () => {
+  state.slipTab = "singles";
+  renderSlip();
+});
+$("slip-clear").addEventListener("click", () => {
+  state.slip = [];
+  state.slipOpen = false;
+  renderSlip();
+  renderGames();
+});
+$("slip-stake").addEventListener("input", renderSlip);
+$("slip-confirm").addEventListener("click", placeSlip);
 
 registerServiceWorker();
 supabase.auth.onAuthStateChange((event, session) => {

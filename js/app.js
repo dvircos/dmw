@@ -306,15 +306,13 @@ function openSheet(game, selection, price, bet = null) {
   renderSheetPicks(game, bet);
   updatePayout();
   $("sheet-backdrop").classList.remove("hidden");
-  $("sheet").classList.add("open");
-  $("sheet").classList.remove("translate-y-full");
+  $("sheet-backdrop").classList.add("flex");
 }
 
 function closeSheet() {
   state.selected = null;
-  $("sheet").classList.add("translate-y-full");
-  $("sheet").classList.remove("open");
   $("sheet-backdrop").classList.add("hidden");
+  $("sheet-backdrop").classList.remove("flex");
 }
 
 function updatePayout() {
@@ -547,6 +545,7 @@ document.querySelectorAll(".stake").forEach((button) => button.addEventListener(
 }));
 $("stake").addEventListener("input", updatePayout);
 $("sheet-cancel").addEventListener("click", closeSheet);
+$("sheet").addEventListener("click", (event) => event.stopPropagation());
 $("sheet-backdrop").addEventListener("click", closeSheet);
 $("sheet-confirm").addEventListener("click", placeBet);
 

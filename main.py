@@ -551,50 +551,44 @@ def upsert_catalogue(db: Database, fixtures: list[dict]) -> int:
     return failures
 
 
-def rounds_ready_for_odds(games: list[dict], now: datetime) -> dict[str, list[dict]]:
-    groups: dict[str, list[dict]] = {}
+def matches_for_odds(games: list[dict], now: datetime) -> list[dict]:
+    window = []
     for game in games:
         if game.get("odds_locked") or game.get("status") != "upcoming" or not game.get("match_time"):
             continue
         kick = parse_time(game["match_time"])
-        if kick <= now:
-            continue
-        key = game.get("round_name") or kick.date().isoformat()
-        groups.setdefault(key, []).append(game)
-    ready: dict[str, list[dict]] = {}
-    for key, rows in groups.items():
-        earliest = min(parse_time(row["match_time"]) for row in rows)
-        if now >= earliest - timedelta(hours=24) and now < earliest:
-            ready[key] = rows
-    return ready
+        if now < kick <= now + timedelta(days=7):
+            window.append(game)
+    window.sort(key=lambda game: game["match_time"])
+    return window
 
 
 def lock_odds(client: FootballClient, db: Database, games: list[dict], now: datetime) -> int:
     failures = 0
-    for _round_name, rows in rounds_ready_for_odds(games, now).items():
-        for game in rows:
-            cache_key = f"odds:{game['fixture_id']}"
-            cached = db.rpc("read_api_cache", {"p_key": cache_key})
-            if isinstance(cached, dict) and "parsed" in cached:
-                parsed = cached.get("parsed")
-            else:
-                if client.stopped:
-                    return failures
-                payload = client.get("/football-event-odds", {"eventid": game["fixture_id"]}, "odds")
-                if payload is None:
-                    return failures
-                parsed = extract_1x2(payload)
-                db.rpc("write_api_cache", {"p_key": cache_key, "p_payload": {"parsed": parsed}})
-            if not parsed:
-                continue
-            update = payload_from_game(
-                game, parsed, lock_odds=True, confirm=False, status="upcoming", home_score=0, away_score=0,
-            )
-            try:
-                push(db, update)
-            except RuntimeError:
-                failures += 1
-                log.exception("Could not lock odds for fixture %s", game["fixture_id"])
+    today = now.date().isoformat()
+    for game in matches_for_odds(games, now):
+        cache_key = f"odds:{game['fixture_id']}:{today}"
+        cached = db.rpc("read_api_cache", {"p_key": cache_key})
+        if isinstance(cached, dict) and "parsed" in cached:
+            parsed = cached.get("parsed")
+        else:
+            if client.stopped:
+                return failures
+            payload = client.get("/football-event-odds", {"eventid": game["fixture_id"]}, "odds")
+            if payload is None:
+                return failures
+            parsed = extract_1x2(payload)
+            db.rpc("write_api_cache", {"p_key": cache_key, "p_payload": {"parsed": parsed}})
+        if not parsed:
+            continue
+        update = payload_from_game(
+            game, parsed, lock_odds=True, confirm=False, status="upcoming", home_score=0, away_score=0,
+        )
+        try:
+            push(db, update)
+        except RuntimeError:
+            failures += 1
+            log.exception("Could not lock odds for fixture %s", game["fixture_id"])
     return failures
 
 

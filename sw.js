@@ -1,4 +1,4 @@
-const CACHE = "mordechai-winners-v1";
+const CACHE = "mordechai-winners-v3";
 const ASSETS = [
   "./",
   "./index.html",

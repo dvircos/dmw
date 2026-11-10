@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
-import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, money, when } from "./format.js";
+import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, countdownLabel, leagueTier, money, when } from "./format.js";
 import { toast } from "./toast.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -15,6 +15,9 @@ const state = {
   selected: null,
   submitting: false,
   channel: null,
+  league: "A",
+  query: "",
+  clock: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -58,6 +61,7 @@ function empty(parent, text) {
 
 function showTab(tab) {
   state.tab = tab;
+  $("games-tools").classList.toggle("hidden", tab !== "games");
   $("view-games").classList.toggle("hidden", tab !== "games");
   $("view-bets").classList.toggle("hidden", tab !== "bets");
   $("view-board").classList.toggle("hidden", tab !== "board");
@@ -68,16 +72,40 @@ function showTab(tab) {
   });
 }
 
+function paintLeagueTabs() {
+  document.querySelectorAll(".league-tab").forEach((button) => {
+    const active = button.dataset.league === state.league;
+    button.classList.toggle("bg-gold", active);
+    button.classList.toggle("font-bold", active);
+    button.classList.toggle("text-ink", active);
+    button.classList.toggle("font-medium", !active);
+    button.classList.toggle("text-slate-300", !active);
+  });
+}
+
+function pendingStake(game) {
+  return state.bets
+    .filter((bet) => bet.status === "pending" && Number(bet.game_id) === Number(game.id))
+    .reduce((sum, bet) => sum + Number(bet.bet_amount || 0), 0);
+}
+
 function renderGames() {
   const root = $("view-games");
   const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
-  const games = [...state.games].sort((a, b) => {
-    const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
-    if (byStatus) return byStatus;
-    return new Date(a.match_time) - new Date(b.match_time);
-  });
+  const query = state.query.trim().toLowerCase();
+  const games = state.games
+    .filter((game) => leagueTier(game) === state.league)
+    .filter((game) => {
+      if (!query) return true;
+      return `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+      if (byStatus) return byStatus;
+      return new Date(a.match_time) - new Date(b.match_time);
+    });
   if (!games.length) {
-    empty(root, "אין משחקים להצגה כרגע");
+    empty(root, query ? "לא נמצאה קבוצה בליגה הזו" : "אין משחקים בליגה הזו");
     return;
   }
   root.replaceChildren();
@@ -97,7 +125,17 @@ function renderGames() {
     } else {
       badge.textContent = GAME_STATUS[game.status] || game.status;
     }
-    head.append(time, badge);
+    const marks = document.createElement("div");
+    marks.className = "flex items-center gap-2";
+    const soon = countdownLabel(game);
+    if (soon) {
+      const clock = document.createElement("span");
+      clock.className = "rounded-full bg-gold/15 px-2 py-0.5 font-bold text-gold";
+      clock.textContent = soon;
+      marks.append(clock);
+    }
+    marks.append(badge);
+    head.append(time, marks);
 
     const teams = document.createElement("div");
     teams.className = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";
@@ -130,7 +168,16 @@ function renderGames() {
       }
       odds.append(button);
     });
-    card.append(head, teams, odds);
+    card.append(head, teams);
+    const stake = pendingStake(game);
+    if (stake > 0) {
+      const openBet = document.createElement("p");
+      openBet.className = "mt-3 inline-flex rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold";
+      const shown = Number.isInteger(stake) ? String(stake) : money(stake);
+      openBet.textContent = `המרת ${shown} נק׳`;
+      card.append(openBet);
+    }
+    card.append(odds);
     root.append(card);
   });
 }
@@ -349,6 +396,7 @@ async function refreshBets() {
   }
   state.bets = data || [];
   renderBets();
+  renderGames();
 }
 
 async function refreshBoard() {
@@ -409,10 +457,13 @@ async function enterApp(session) {
   if (ensured.error) toast(cleanError(ensured.error), "error");
   await refreshAll();
   subscribe();
+  if (!state.clock) state.clock = setInterval(() => { if (state.tab === "games") renderGames(); }, 30000);
 }
 
 function leaveApp() {
   if (state.channel) supabase.removeChannel(state.channel);
+  if (state.clock) clearInterval(state.clock);
+  state.clock = null;
   state.channel = null;
   state.user = null;
   $("app-view").classList.add("hidden");
@@ -539,6 +590,15 @@ $("auth-form").addEventListener("submit", submitAuth);
 $("logout").addEventListener("click", () => supabase.auth.signOut());
 $("refresh").addEventListener("click", () => refreshAll().then(() => toast("הנתונים עודכנו")));
 document.querySelectorAll(".nav-btn").forEach((button) => button.addEventListener("click", () => showTab(button.dataset.tab)));
+document.querySelectorAll(".league-tab").forEach((button) => button.addEventListener("click", () => {
+  state.league = button.dataset.league;
+  paintLeagueTabs();
+  renderGames();
+}));
+$("team-search").addEventListener("input", () => {
+  state.query = $("team-search").value;
+  renderGames();
+});
 document.querySelectorAll(".stake").forEach((button) => button.addEventListener("click", () => {
   $("stake").value = button.dataset.stake;
   updatePayout();

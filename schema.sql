@@ -36,14 +36,15 @@ create table if not exists public.bets (
   bet_amount numeric(10,2) not null check (bet_amount > 0),
   odds numeric(4,2) not null,
   potential_payout numeric(10,2) not null,
-  status text not null default 'pending' check (status in ('pending', 'won', 'lost', 'void'))
+  status text not null default 'pending' check (status in ('pending', 'won', 'lost', 'void', 'cancelled'))
 );
 
 create index if not exists games_match_time_idx on public.games (match_time);
 create index if not exists bets_user_idx on public.bets (user_id);
 create index if not exists bets_game_idx on public.bets (game_id);
 create unique index if not exists bets_one_slip_per_selection
-  on public.bets (user_id, game_id, bet_selection);
+  on public.bets (user_id, game_id, bet_selection)
+  where status = 'pending';
 
 alter table public.profiles enable row level security;
 alter table public.games enable row level security;
@@ -574,6 +575,7 @@ begin
     where user_id = v_uid
       and game_id = v_bet.game_id
       and bet_selection = p_selection
+      and status = 'pending'
       and id <> v_bet.id
   ) then
     raise exception 'כבר קיים הימור על הבחירה הזו';
@@ -631,6 +633,62 @@ begin
 end;
 $$;
 
+create or replace function public.cancel_bet(p_bet_id bigint)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_bet public.bets%rowtype;
+  v_game public.games%rowtype;
+  v_balance numeric(10,2);
+begin
+  if v_uid is null then
+    raise exception 'יש להתחבר';
+  end if;
+
+  select * into v_bet
+  from public.bets
+  where id = p_bet_id and user_id = v_uid
+  for update;
+  if not found then
+    raise exception 'ההימור לא נמצא';
+  end if;
+  if v_bet.status <> 'pending' then
+    raise exception 'אפשר לבטל רק הימור ממתין';
+  end if;
+
+  select * into v_game
+  from public.games
+  where id = v_bet.game_id
+  for update;
+  if not found then
+    raise exception 'המשחק לא נמצא';
+  end if;
+  if v_game.status <> 'upcoming' or v_game.match_time is null or v_game.match_time <= now() then
+    raise exception 'אפשר לבטל רק לפני תחילת המשחק';
+  end if;
+
+  update public.profiles
+  set balance = balance + v_bet.bet_amount
+  where id = v_uid;
+
+  update public.bets
+  set status = 'cancelled'
+  where id = v_bet.id;
+
+  select balance into v_balance from public.profiles where id = v_uid;
+  return jsonb_build_object(
+    'bet_id', v_bet.id,
+    'status', 'cancelled',
+    'refund', v_bet.bet_amount,
+    'balance', v_balance
+  );
+end;
+$$;
+
 do $$
 declare
   r record;
@@ -640,10 +698,10 @@ begin
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and p.proname in ('edit_bet', 'reserve_api_requests', 'read_api_cache', 'write_api_cache', 'log_api_request', 'sync_game_result')
+      and p.proname in ('edit_bet', 'cancel_bet', 'reserve_api_requests', 'read_api_cache', 'write_api_cache', 'log_api_request', 'sync_game_result')
   loop
     execute format('revoke all on function %s from public, anon, authenticated', r.sig);
-    if r.proname = 'edit_bet' then
+    if r.proname in ('edit_bet', 'cancel_bet') then
       execute format('grant execute on function %s to authenticated', r.sig);
     elsif exists (select 1 from pg_roles where rolname = 'service_role') then
       execute format('grant execute on function %s to service_role', r.sig);
@@ -664,12 +722,12 @@ begin
     where n.nspname = 'public'
       and p.proname in (
         'insert_profile', 'handle_new_user', 'auto_confirm_email', 'ensure_profile',
-        'place_bet', 'edit_bet', 'sync_game_result',
+        'place_bet', 'edit_bet', 'cancel_bet', 'sync_game_result',
         'reserve_api_requests', 'read_api_cache', 'write_api_cache', 'log_api_request'
       )
   loop
     execute format('revoke all on function %s from public, anon, authenticated', r.sig);
-    if r.proname in ('place_bet', 'ensure_profile', 'edit_bet') then
+    if r.proname in ('place_bet', 'ensure_profile', 'edit_bet', 'cancel_bet') then
       execute format('grant execute on function %s to authenticated', r.sig);
     elsif r.proname in ('sync_game_result', 'reserve_api_requests', 'read_api_cache', 'write_api_cache', 'log_api_request') then
       if exists (select 1 from pg_roles where rolname = 'service_role') then

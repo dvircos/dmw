@@ -1,6 +1,6 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
-import { BET_STATUS, GAME_STATUS, SELECTION, canBet, money, when } from "./format.js";
+import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canEdit, money, when } from "./format.js";
 import { toast } from "./toast.js";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -179,6 +179,18 @@ function renderBets() {
     status.textContent = BET_STATUS[bet.status] || bet.status;
     foot.append(payout, status);
     card.append(title, meta, foot);
+    if (bet.status === "pending") {
+      const editable = canEdit(bet);
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "mt-3 w-full rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
+      edit.textContent = editable ? "עריכת הימור" : "ההימור נעול";
+      edit.disabled = !editable;
+      if (editable) {
+        edit.addEventListener("click", () => openSheet(game, bet.bet_selection, bet.odds, bet));
+      }
+      card.append(edit);
+    }
     root.append(card);
   });
 }
@@ -218,10 +230,75 @@ function render() {
   renderBoard();
 }
 
-function openSheet(game, selection, price) {
-  state.selected = { id: game.id, selection, price: Number(price), label: `${game.home_team} נגד ${game.away_team}` };
+function oddsFor(game, selection) {
+  if (selection === "1") return Number(game.home_odds);
+  if (selection === "X") return Number(game.draw_odds);
+  return Number(game.away_odds);
+}
+
+function renderSheetPicks(game, bet) {
+  const picks = $("sheet-picks");
+  picks.replaceChildren();
+  if (!bet) {
+    picks.classList.add("hidden");
+    picks.classList.remove("grid");
+    return;
+  }
+  picks.classList.remove("hidden");
+  picks.classList.add("grid");
+  ["1", "X", "2"].forEach((selection) => {
+    const price = selection === bet.bet_selection ? Number(bet.odds) : oddsFor(game, selection);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.disabled = !Number.isFinite(price) || price < 1.01;
+    button.className = "rounded-2xl bg-black/30 px-2 py-2 text-center disabled:opacity-40";
+    const label = document.createElement("div");
+    label.className = "text-[11px] text-slate-400";
+    label.textContent = selection === "1" ? "1 בית" : selection === "2" ? "2 חוץ" : "X תיקו";
+    const value = document.createElement("div");
+    value.className = "text-base font-extrabold text-emerald-300";
+    value.dir = "ltr";
+    value.textContent = Number.isFinite(price) ? price.toFixed(2) : "—";
+    button.append(label, value);
+    button.addEventListener("click", () => {
+      if (!state.selected) return;
+      state.selected.selection = selection;
+      state.selected.price = price;
+      $("sheet-selection").textContent = `${SELECTION[selection]} · יחס נעול ${price.toFixed(2)}`;
+      markPick(selection);
+      updatePayout();
+    });
+    button.dataset.selection = selection;
+    picks.append(button);
+  });
+  markPick(bet.bet_selection);
+}
+
+function markPick(selection) {
+  $("sheet-picks").querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("ring-2", button.dataset.selection === selection);
+    button.classList.toggle("ring-gold", button.dataset.selection === selection);
+  });
+}
+
+function openSheet(game, selection, price, bet = null) {
+  state.selected = {
+    id: game.id || bet?.game_id,
+    betId: bet ? bet.id : null,
+    originalAmount: bet ? Number(bet.bet_amount) : 0,
+    selection,
+    price: Number(price),
+    label: `${game.home_team} נגד ${game.away_team}`,
+  };
   $("sheet-match").textContent = state.selected.label;
-  $("sheet-selection").textContent = `${SELECTION[selection]} · יחס מוצג ${Number(price).toFixed(2)}`;
+  $("sheet-selection").textContent = `${SELECTION[selection]} · יחס ${bet ? "נעול" : "מוצג"} ${Number(price).toFixed(2)}`;
+  $("sheet-note").textContent = bet
+    ? "עריכה מעדכנת את אותו הימור עד שעת הפתיחה. היחס נשאר נעול, ומחליפים אותו רק אם משנים בחירה."
+    : "היחס והתשלום נקבעים בשרת לפי הנתונים בזמן השליחה. הימור חדש ננעל 5 דקות לפני הפתיחה.";
+  $("sheet-confirm").textContent = bet ? "עדכון הימור" : "אישור הימור";
+  $("sheet-balance").classList.toggle("hidden", !bet);
+  if (bet) $("stake").value = String(bet.bet_amount);
+  renderSheetPicks(game, bet);
   updatePayout();
   $("sheet-backdrop").classList.remove("hidden");
   $("sheet").classList.add("open");
@@ -240,6 +317,9 @@ function updatePayout() {
   const price = state.selected?.price || 0;
   const payout = Number.isFinite(amount) && amount > 0 ? amount * price : 0;
   $("sheet-payout").textContent = money(payout);
+  if (!state.selected?.betId) return;
+  const next = state.balance + state.selected.originalAmount - (Number.isFinite(amount) ? amount : 0);
+  $("sheet-balance").textContent = `יתרה אחרי האישור: ₪${money(next)}`;
 }
 
 async function refreshGames() {
@@ -256,7 +336,7 @@ async function refreshBets() {
   if (!state.user) return;
   const { data, error } = await supabase
     .from("bets")
-    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score)")
+    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds)")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
     .limit(100);
@@ -389,24 +469,34 @@ async function placeBet() {
     toast("הזינו סכום גדול מאפס", "error");
     return;
   }
-  if (amount > state.balance) {
+  const rounded = Math.round(amount * 100) / 100;
+  const available = state.selected.betId ? state.balance + state.selected.originalAmount : state.balance;
+  if (rounded > available) {
     toast("יתרה לא מספיקה", "error");
     return;
   }
   state.submitting = true;
   $("sheet-confirm").disabled = true;
   try {
-    const { data, error } = await supabase.rpc("place_bet", {
-      p_game_id: Number(state.selected.id),
-      p_selection: state.selected.selection,
-      p_amount: Math.round(amount * 100) / 100,
-    });
+    const { data, error } = state.selected.betId
+      ? await supabase.rpc("edit_bet", {
+          p_bet_id: Number(state.selected.betId),
+          p_selection: state.selected.selection,
+          p_amount: rounded,
+        })
+      : await supabase.rpc("place_bet", {
+          p_game_id: Number(state.selected.id),
+          p_selection: state.selected.selection,
+          p_amount: rounded,
+        });
     if (error) {
       toast(cleanError(error), "error");
       return;
     }
     setBalance(data.balance);
-    toast(`ההימור נקלט ביחס ${Number(data.odds).toFixed(2)} · תשלום אפשרי ₪${money(data.potential_payout)}`);
+    toast(state.selected.betId
+      ? `ההימור ${data.bet_id} עודכן · יתרה ₪${money(data.balance)} · תשלום אפשרי ₪${money(data.potential_payout)}`
+      : `ההימור נקלט ביחס ${Number(data.odds).toFixed(2)} · תשלום אפשרי ₪${money(data.potential_payout)}`);
     closeSheet();
     await refreshBets();
   } finally {

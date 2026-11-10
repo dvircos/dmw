@@ -219,12 +219,14 @@ class FootballClient:
     def __init__(self, api_key: str, db: Database):
         self.db = db
         self.stopped = False
+        self.last_error = None
         self.session = requests.Session()
         self.session.headers.update({"x-apisports-key": api_key})
 
     def get(self, path: str, params: dict, purpose: str) -> dict | None:
         if self.stopped:
             return None
+        self.last_error = None
         allowed = self.db.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
         if allowed is not True:
             log.warning("Daily operating limit of 80 sports requests was reached. This run stops before the reserved 20.")
@@ -245,6 +247,7 @@ class FootballClient:
             payload = response.json()
             errors = payload.get("errors")
             if errors not in (None, {}, []):
+                self.last_error = errors
                 log.warning("Sports API returned an error payload: %s", errors)
                 return None
             return payload
@@ -413,20 +416,36 @@ def load_fixtures(client: FootballClient, db: Database, today) -> tuple[int, lis
         return int(cached["season"]), cached["fixtures"]
     start = (today - timedelta(days=1)).isoformat()
     end = (today + timedelta(days=45)).isoformat()
-    for season in (today.year, today.year - 1, today.year - 2):
+    seasons = []
+    for season in (today.year, today.year - 1, today.year - 2, 2024, 2023, 2022):
+        if season not in seasons:
+            seasons.append(season)
+    for season in seasons:
         fixtures = client.get_pages(
             "/fixtures",
             {"league": LEAGUE_ID, "season": season, "from": start, "to": end},
             "fixtures",
         )
-        if client.stopped or fixtures is None:
+        if client.stopped:
             return None
+        if fixtures is None:
+            message = str(client.last_error or "").lower()
+            if "suspended" in message or "token" in message or "key" in message:
+                log.warning("Sports API account cannot be used. Stopping so the reserved requests stay unused.")
+                client.stopped = True
+                db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": None, "fixtures": []}})
+                return None
+            if "season" in message or "plan" in message:
+                continue
+            return None
+        db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": season, "fixtures": fixtures}})
         if fixtures:
-            db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": season, "fixtures": fixtures}})
             log.info("Stored Nations League season %s (%s fixtures) for today.", season, len(fixtures))
             return season, fixtures
+        log.info("Season %s is reachable and has no fixtures in today's window. Cached that result.", season)
+        return None
     db.rpc("write_api_cache", {"p_key": key, "p_payload": {"season": None, "fixtures": []}})
-    log.info("No Nations League fixtures in the current window.")
+    log.info("No Nations League fixtures were available in today's window. The empty result is cached, so later runs today will not call the sports API for the fixture list.")
     return None
 
 

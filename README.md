@@ -7,7 +7,7 @@
 
 הדמיית הימורים לנייד על משחקי יורו ליגת האומות. היתרה וירטואלית, בלי הפקדות ובלי משיכות.
 
-Live app: https://dvirmor11-create.github.io/mordechai-winners-nations/
+Live app (after GitHub username/repository rename): https://dvircos.github.io/dmw/
 
 ## איך זה עובד
 
@@ -59,3 +59,9 @@ Run the SQL migrations in this order if the project has not already had them app
 - If the computer is off, Chrome is closed, or no Winner tab is open, no scan occurs. The next scan runs when the browser is available and the Winner tab is open.
 - The hourly scan does not create games by itself; it captures only 1X2 data Winner actually returns to the page. The separate fixture sync remains responsible for creating/updating the fixture catalogue.
 - To update: open `chrome://extensions`, enable Developer mode, click Reload on the unpacked extension (or Load unpacked from the updated `winner-extension` folder). Then open the app and sign in once, and keep a Winner tab open.
+
+
+## אחרי שינוי שמות ב-GitHub
+הכתובת הצפויה: https://dvircos.github.io/dmw/
+יש להוסיף את הכתובת החדשה ב-Supabase Authentication > URL Configuration > Redirect URLs.
+לאחר החלפת קובצי התוסף יש לפתוח chrome://extensions וללחוץ Reload.

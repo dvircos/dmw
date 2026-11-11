@@ -24,7 +24,7 @@ import requests
 from nacl import encoding, public
 
 ROOT = Path(__file__).resolve().parent
-REPO_NAME = "mordechai-winners-nations"
+REPO_NAME = "dmw"
 GITHUB_API = "https://api.github.com"
 SECRETS = ("GITHUB_TOKEN", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_PASSWORD", "API_KEY")
 

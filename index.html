@@ -68,6 +68,8 @@
       .search-wrap svg { position:absolute; right:1rem; top:50%; transform:translateY(-50%); pointer-events:none; }
       .search-wrap input { padding-right:2.8rem; }
       body[data-theme="light"] { color:#172554; background:linear-gradient(180deg,#f8fbff 0%,#eaf2ff 100%); }
+      body[data-theme="light"] #auth-view .dmw-mark, body[data-theme="light"] header .dmw-mark { color:#17365f; text-shadow:none; }
+      body[data-theme="light"] #auth-view .dmw-mark .dmw-w, body[data-theme="light"] header .dmw-mark .dmw-w { color:#b7791f; }
       body[data-theme="light"] .bg-ink, body[data-theme="light"] .bg-ink\/70, body[data-theme="light"] .bg-ink\/60 { background-color:#eaf2ff !important; }
       body[data-theme="light"] .bg-panel { background-color:#ffffff !important; }
       body[data-theme="light"] .bg-ink\/90, body[data-theme="light"] .bg-ink\/95 { background-color:rgba(255,255,255,.94) !important; }
@@ -260,7 +262,7 @@
           splash.classList.add("splash-hidden");
           window.setTimeout(() => splash.remove(), 350);
         };
-        window.setTimeout(dismiss, 2000);
+        window.setTimeout(dismiss, 4000);
         window.addEventListener("error", dismiss, { once: true });
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();

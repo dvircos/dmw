@@ -1,8 +1,8 @@
+
 name: Sync leagues
 
 on:
   schedule:
-    # One daily run. main.py spends at most five sports calls, one per league.
     - cron: "15 4 * * *"
   workflow_dispatch:
 
@@ -28,6 +28,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           API_KEY: ${{ secrets.API_KEY }}
-         FORCE_ODDS_REFRESH: "true"
-
+          FORCE_ODDS_REFRESH: "true"
         run: python main.py

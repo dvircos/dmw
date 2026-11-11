@@ -18,9 +18,6 @@ alter table public.bets add constraint bets_status_check
   check (status in ('pending', 'won', 'lost', 'void', 'cancelled'));
 
 drop index if exists public.bets_one_slip_per_selection;
-create unique index bets_one_slip_per_selection
-  on public.bets (user_id, game_id, bet_selection)
-  where status = 'pending';
 
 create or replace function public.edit_bet(
   p_bet_id bigint,

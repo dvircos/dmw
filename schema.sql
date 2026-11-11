@@ -56,9 +56,6 @@ create index if not exists bets_user_idx on public.bets (user_id);
 create index if not exists bets_game_idx on public.bets (game_id);
 create index if not exists bet_items_game_idx on public.bet_items (game_id);
 create index if not exists bet_items_bet_idx on public.bet_items (bet_id);
-create unique index if not exists bets_one_slip_per_selection
-  on public.bets (user_id, game_id, bet_selection)
-  where status = 'pending';
 
 alter table public.profiles enable row level security;
 alter table public.games enable row level security;

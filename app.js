@@ -833,41 +833,7 @@ $("slip-stake").addEventListener("input", renderSlip);
 $("slip-confirm").addEventListener("click", placeSlip);
 
 
-// Winner Chrome extension bridge. Use postMessage JSON strings so the
-// extension isolated world and the page main world can exchange data safely.
-window.addEventListener("message", async (event) => {
-  if (event.source !== window || event.origin !== location.origin ||
-      event.data?.__mordo_bridge !== "app-import") return;
-  let payload;
-  try { payload = JSON.parse(event.data.payload || "{}"); }
-  catch (_) { return; }
-  const requestId = payload?.requestId || null;
-  const report = detail => window.postMessage({
-    __mordo_bridge:"app-import-result",
-    payload:JSON.stringify({requestId,...detail})
-  },location.origin);
-  try {
-    if (!Array.isArray(payload?.matches) || !payload.matches.length) {
-      report({ok:false,error:"empty-payload"}); return;
-    }
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) {
-      toast("כדי לקלוט יחסים, התחבר קודם לאפליקציה", "error");
-      report({ok:false,error:"not-authenticated"}); return;
-    }
-    const { data, error } = await supabase.rpc("import_winner_odds", { p_matches: payload.matches });
-    if (error) {
-      toast("קליטת יחסי Winner נכשלה: " + cleanError(error), "error");
-      report({ok:false,error:cleanError(error)}); return;
-    }
-    const count = Number(data?.updated || 0);
-    toast(count ? `עודכנו יחסים ב-${count} משחקים` : "היחסים נקלטו, אך לא נמצאו משחקים תואמים באפליקציה", count ? "success" : "error");
-    await refreshGames();
-    report({ok:true,updated:count});
-  } catch (err) {
-    report({ok:false,error:String(err?.message||err)});
-  }
-});
+// Winner sync is handled by the extension content script directly through authenticated Supabase RPC.
 
 registerServiceWorker();
 supabase.auth.onAuthStateChange((event, session) => {

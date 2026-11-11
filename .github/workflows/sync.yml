@@ -28,4 +28,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           API_KEY: ${{ secrets.API_KEY }}
+         FORCE_ODDS_REFRESH: "true"
+
         run: python main.py

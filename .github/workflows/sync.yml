@@ -3,7 +3,8 @@ name: Sync leagues
 
 on:
   schedule:
-    - cron: "15 4 * * *"
+    # UTC schedule; main.py filters this to 20:00-23:30 Israel time (DST-safe).
+    - cron: "0,30 17-21 * * *"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Sync fixtures, odds, and 90-minute results
+      - name: Sync fixtures and 90-minute results
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

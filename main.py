@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -29,6 +30,7 @@ LEAGUES = (
     (5, "nations"),
 )
 FIXTURE_LOOKAHEAD_DAYS = 7
+ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 
 SPANISH_FOCUS = {"real madrid", "barcelona"}
 ENGLISH_FOCUS = {"manchester united", "manchester city", "liverpool", "arsenal", "chelsea"}
@@ -633,11 +635,9 @@ def rows_from_payload(payload: dict | None, code: str, now: datetime) -> list[di
 
 
 def load_league(client: FootballClient, db: Database, league_id: int, code: str, now: datetime) -> list[dict]:
-    # Two-hour cache buckets keep result checks reasonably fresh while staying
-    # below the configured 80-request daily limit (5 leagues x 12 buckets).
-    bucket = now.replace(minute=0, second=0, microsecond=0)
-    bucket = bucket.replace(hour=(bucket.hour // 2) * 2)
-    cache_key = f"league-bundle:{league_id}:{bucket.strftime('%Y%m%d-%H')}"
+    # Half-hour cache buckets match the scheduled refresh cadence.
+    bucket = now.replace(minute=(now.minute // 30) * 30, second=0, microsecond=0)
+    cache_key = f"league-bundle:{league_id}:{bucket.strftime('%Y%m%d-%H%M')}"
     cached = db.rpc("read_api_cache", {"p_key": cache_key})
     if isinstance(cached, dict) and "response" in cached:
         return rows_from_payload(cached, code, now)
@@ -680,6 +680,14 @@ def upsert_catalogue(db: Database, fixtures: list[dict]) -> int:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    # GitHub cron is UTC. Enforce the requested Israel-local window here so
+    # the schedule stays correct across daylight-saving changes.
+    if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+        local_now = datetime.now(timezone.utc).astimezone(ISRAEL_TZ)
+        if not (20 <= local_now.hour < 24):
+            log.info("Outside Israel 20:00-00:00 sync window; skipping API calls.")
+            return 0
+
     url = os.environ.get("SUPABASE_URL", "").strip()
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
     api_key = os.environ.get("API_KEY", "").strip()

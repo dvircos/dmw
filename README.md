@@ -1,3 +1,8 @@
+
+## UI update v2.5
+- Added persistent light/dark theme toggle, a short splash screen, refined header icons and spacing, search icon, and clearer game-card metadata/odds typography.
+- Theme preference is stored in browser localStorage.
+
 # מרדכי ווינרים - ליגת האומות
 
 הדמיית הימורים לנייד על משחקי יורו ליגת האומות. היתרה וירטואלית, בלי הפקדות ובלי משיכות.
@@ -44,3 +49,13 @@ Run the SQL migrations in this order if the project has not already had them app
 - סנכרון המשחקים והתוצאות מתוזמן כל שעתיים. חמש ליגות כפול 12 ריצות ביום הן עד 60 קריאות ליגה ביום, לפני קריאות חריגות/דפדוף.
 - תוצאה סופית מאושרת לאחר 105 דקות לפחות מפתיחת המשחק, ואז `sync_game_result` מעדכנת הימורים בודדים ומשולבים ומזכה יתרות באופן אידמפוטנטי (הימורים שכבר הוכרעו אינם מזוכים שוב).
 - משחקים שהסתיימו בהארכה/פנדלים בפיד RapidAPI אינם מוכרעים אוטומטית אם אין ציון ברור של 90 דקות; יש לבדוק אותם ידנית ולא לנחש תוצאה.
+
+
+## Hourly Winner synchronization (extension 2.2.0)
+
+- The Chrome extension stores a compact history of captured fixtures and their last 1X2 prices. It queues only new fixtures or fixtures whose 1X2 prices changed, avoiding repeated submissions of unchanged markets.
+- When Chrome is running, the extension schedules a Winner scan every 60 minutes. It uses the open Winner tab and reloads it to trigger Winner's normal fixture/market requests; this can refresh the page and interrupt an action in progress, so keep Winner on a listing page rather than in the middle of a transaction.
+- The app must be opened and signed in once after installing/updating the extension so the extension can receive the Supabase session refresh token. After that, the app tab can be closed; the extension refreshes the session as needed and sends updates directly to Supabase. If the user signs out or revokes the session, sign in again in the app.
+- If the computer is off, Chrome is closed, or no Winner tab is open, no scan occurs. The next scan runs when the browser is available and the Winner tab is open.
+- The hourly scan does not create games by itself; it captures only 1X2 data Winner actually returns to the page. The separate fixture sync remains responsible for creating/updating the fixture catalogue.
+- To update: open `chrome://extensions`, enable Developer mode, click Reload on the unpacked extension (or Load unpacked from the updated `winner-extension` folder). Then open the app and sign in once, and keep a Winner tab open.

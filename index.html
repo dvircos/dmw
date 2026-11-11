@@ -260,7 +260,7 @@
           splash.classList.add("splash-hidden");
           window.setTimeout(() => splash.remove(), 350);
         };
-        window.setTimeout(dismiss, 700);
+        window.setTimeout(dismiss, 2000);
         window.addEventListener("error", dismiss, { once: true });
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();

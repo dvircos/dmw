@@ -1,0 +1,21 @@
+
+name: GitHub Actions Diagnostic
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check runner
+        run: echo "GitHub Actions runner is working"
+
+      - name: Check repository
+        run: echo "Repository workflow loaded successfully"
+
+      - name: Finish
+        run: echo "DIAGNOSTIC SUCCESS"

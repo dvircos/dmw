@@ -1,7 +1,5 @@
--- Allow unlimited separate bets on the same game:
--- single bets, multiple selections, and multiple different parlays can all include a fixture.
--- A game may still appear only once inside a single parlay slip.
-
+-- Preserve unlimited repeated singles/parlays across separate slips.
+-- A single parlay still cannot include the same fixture twice.
 drop index if exists public.bets_one_slip_per_selection;
 
 create or replace function public.place_parlay(p_legs jsonb, p_amount numeric)
@@ -96,8 +94,6 @@ begin
     if v_price is null or v_price < 1.01 then
       raise exception 'היחס לא זמין';
     end if;
-
-    -- Repeated bets on the same fixture are allowed across separate slips.
 
     v_product := v_product * v_price;
     v_ids := array_append(v_ids, v_game.id);
@@ -210,8 +206,6 @@ begin
     raise exception 'המשחק כבר התחיל';
   end if;
 
-  -- Duplicate selections across separate bets are allowed.
-
   if p_selection = v_bet.bet_selection then
     v_odds := v_bet.odds;
   else
@@ -241,20 +235,16 @@ begin
   set balance = balance + v_bet.bet_amount - v_amount
   where id = v_uid;
 
-  begin
-    update public.bets
-    set bet_selection = p_selection,
-        bet_amount = v_amount,
-        odds = v_odds,
-        potential_payout = v_payout
-    where id = v_bet.id;
-    update public.bet_items
-    set bet_selection = p_selection,
-        odds = v_odds
-    where bet_id = v_bet.id;
-  exception when unique_violation then
-    raise exception 'כבר קיים הימור על הבחירה הזו';
-  end;
+  update public.bets
+  set bet_selection = p_selection,
+      bet_amount = v_amount,
+      odds = v_odds,
+      potential_payout = v_payout
+  where id = v_bet.id;
+  update public.bet_items
+  set bet_selection = p_selection,
+      odds = v_odds
+  where bet_id = v_bet.id;
 
   select balance into v_balance from public.profiles where id = v_uid;
   return jsonb_build_object(
@@ -267,11 +257,5 @@ begin
   );
 end;
 $$;
-
-revoke all on function public.place_parlay(jsonb, numeric) from public, anon, authenticated;
-grant execute on function public.place_parlay(jsonb, numeric) to authenticated;
-
-revoke all on function public.edit_bet(bigint, text, numeric) from public, anon, authenticated;
-grant execute on function public.edit_bet(bigint, text, numeric) to authenticated;
 
 notify pgrst, 'reload schema';

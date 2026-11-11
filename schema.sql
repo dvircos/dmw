@@ -704,18 +704,6 @@ begin
       raise exception 'היחס לא זמין';
     end if;
 
-    if exists (
-      select 1 from public.bets
-      where user_id = v_uid and game_id = v_game.id and status = 'pending'
-    ) or exists (
-      select 1
-      from public.bet_items i
-      join public.bets b on b.id = i.bet_id
-      where b.user_id = v_uid and b.status = 'pending' and i.game_id = v_game.id
-    ) then
-      raise exception 'כבר קיים הימור על המשחק הזה';
-    end if;
-
     v_product := v_product * v_price;
     v_ids := array_append(v_ids, v_game.id);
     v_selections := array_append(v_selections, v_selection);
@@ -839,17 +827,6 @@ begin
     raise exception 'המשחק כבר התחיל';
   end if;
 
-  if exists (
-    select 1 from public.bets
-    where user_id = v_uid
-      and game_id = v_bet.game_id
-      and bet_selection = p_selection
-      and status = 'pending'
-      and id <> v_bet.id
-  ) then
-    raise exception 'כבר קיים הימור על הבחירה הזו';
-  end if;
-
   if p_selection = v_bet.bet_selection then
     v_odds := v_bet.odds;
   else
@@ -879,20 +856,16 @@ begin
   set balance = balance + v_bet.bet_amount - v_amount
   where id = v_uid;
 
-  begin
-    update public.bets
-    set bet_selection = p_selection,
-        bet_amount = v_amount,
-        odds = v_odds,
-        potential_payout = v_payout
-    where id = v_bet.id;
-    update public.bet_items
-    set bet_selection = p_selection,
-        odds = v_odds
-    where bet_id = v_bet.id;
-  exception when unique_violation then
-    raise exception 'כבר קיים הימור על הבחירה הזו';
-  end;
+  update public.bets
+  set bet_selection = p_selection,
+      bet_amount = v_amount,
+      odds = v_odds,
+      potential_payout = v_payout
+  where id = v_bet.id;
+  update public.bet_items
+  set bet_selection = p_selection,
+      odds = v_odds
+  where bet_id = v_bet.id;
 
   select balance into v_balance from public.profiles where id = v_uid;
   return jsonb_build_object(

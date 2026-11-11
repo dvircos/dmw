@@ -348,8 +348,6 @@ begin
       raise exception 'היחס לא זמין';
     end if;
 
-    -- Repeated bets on the same fixture are allowed across separate slips.
-
     v_product := v_product * v_price;
     v_ids := array_append(v_ids, v_game.id);
     v_selections := array_append(v_selections, v_selection);
@@ -461,8 +459,6 @@ begin
     raise exception 'המשחק כבר התחיל';
   end if;
 
-  -- Duplicate selections across separate bets are allowed.
-
   if p_selection = v_bet.bet_selection then
     v_odds := v_bet.odds;
   else
@@ -492,20 +488,16 @@ begin
   set balance = balance + v_bet.bet_amount - v_amount
   where id = v_uid;
 
-  begin
-    update public.bets
-    set bet_selection = p_selection,
-        bet_amount = v_amount,
-        odds = v_odds,
-        potential_payout = v_payout
-    where id = v_bet.id;
-    update public.bet_items
-    set bet_selection = p_selection,
-        odds = v_odds
-    where bet_id = v_bet.id;
-  exception when unique_violation then
-    raise exception 'כבר קיים הימור על הבחירה הזו';
-  end;
+  update public.bets
+  set bet_selection = p_selection,
+      bet_amount = v_amount,
+      odds = v_odds,
+      potential_payout = v_payout
+  where id = v_bet.id;
+  update public.bet_items
+  set bet_selection = p_selection,
+      odds = v_odds
+  where bet_id = v_bet.id;
 
   select balance into v_balance from public.profiles where id = v_uid;
   return jsonb_build_object(

@@ -121,6 +121,7 @@
         <section id="view-games"></section>
         <section id="view-bets" class="hidden"></section>
         <section id="view-board" class="hidden"></section>
+        <section id="view-admin" class="hidden"></section>
       </main>
 
       <div id="slip" class="fixed inset-x-3 z-40 mx-auto hidden max-w-xl" style="bottom: calc(4.4rem + env(safe-area-inset-bottom))">
@@ -157,7 +158,7 @@
       </div>
 
       <nav class="fixed bottom-0 left-1/2 z-40 w-full max-w-xl -translate-x-1/2 border-t border-slate-700/50 bg-ink/95 backdrop-blur">
-        <div class="grid grid-cols-3 pb-[env(safe-area-inset-bottom)]">
+        <div class="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
           <button type="button" data-tab="games" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-gold">
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.5 2.8 2.5 15.2 0 18M12 3c-2.5 2.8-2.5 15.2 0 18M3 12h18"/></svg>
             משחקים
@@ -169,6 +170,10 @@
           <button type="button" data-tab="board" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-slate-400">
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M4 19h16"/></svg>
             טבלה
+          </button>
+          <button id="admin-nav" type="button" data-tab="admin" class="nav-btn hidden flex-col items-center gap-1 py-3 text-xs text-slate-400">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l2.2 2.1 3-.1.8 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.8 2.9-3-.1L12 21l-2.2-2.1-3 .1-.8-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.8-2.9 3 .1z"/><circle cx="12" cy="12" r="3"/></svg>
+            ניהול
           </button>
         </div>
       </nav>

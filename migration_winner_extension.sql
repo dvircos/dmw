@@ -16,6 +16,8 @@ declare
   v_away_odds numeric;
   v_updated integer := 0;
   v_rows integer := 0;
+  v_processed integer := 0;
+  v_valid integer := 0;
 begin
   if auth.uid() is null then
     raise exception 'authentication required';
@@ -34,11 +36,13 @@ begin
     v_away_odds := nullif(item->>'away_odds', '')::numeric;
 
     if v_home is null or v_away is null or v_kickoff is null
+       or v_home_odds is null or v_draw_odds is null or v_away_odds is null
        or v_home_odds not between 1.01 and 99.99
        or v_draw_odds not between 1.01 and 99.99
        or v_away_odds not between 1.01 and 99.99 then
       continue;
     end if;
+    v_valid := v_valid + 1;
 
     update public.games
        set home_odds = v_home_odds,
@@ -55,7 +59,12 @@ begin
     get diagnostics v_rows = row_count;
     v_updated := v_updated + v_rows;
   end loop;
-  return jsonb_build_object('updated', v_updated);
+  return jsonb_build_object(
+    'updated', v_updated,
+    'matched', v_updated,
+    'processed', v_valid,
+    'received', jsonb_array_length(p_matches)
+  );
 end;
 $$;
 

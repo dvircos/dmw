@@ -29,8 +29,18 @@ LEAGUES = (
     (5, "nations"),
 )
 FIXTURE_LOOKAHEAD_DAYS = 7
-ODDS_ENDPOINT = "/football-event-odds"
-DEFAULT_ODDS_COUNTRY = "UK"
+
+SPANISH_FOCUS = {"real madrid", "barcelona"}
+ENGLISH_FOCUS = {"manchester united", "manchester city", "liverpool", "arsenal", "chelsea"}
+
+def include_fixture(code: str, home: str, away: str) -> bool:
+    """Keep all Israel/UCL/Nations fixtures; narrow Spain and England to requested clubs."""
+    if code not in {"spain", "england"}:
+        return True
+    names = [str(home or "").strip().casefold(), str(away or "").strip().casefold()]
+    allowed = SPANISH_FOCUS if code == "spain" else ENGLISH_FOCUS
+    return any(name == club or club in name for name in names for club in allowed)
+
 PLACEHOLDERS = {"", "YOUR_SPORTS_API_KEY_HERE"}
 REGULAR_TIME_DONE = {"FT", "AET", "PEN", "ET", "BT", "P"}
 LIVE = {"1H", "HT", "2H", "LIVE", "INT", "SUSP"}
@@ -211,41 +221,6 @@ class Database:
             return None
         return response.json()
 
-    def games(self) -> list[dict]:
-        response = requests.get(
-            f"{self.url}/rest/v1/games",
-            headers=self.headers,
-            params={
-                "select": "fixture_id,home_team,away_team,home_flag,away_flag,match_time,status,round_name,odds_locked,result_confirmed",
-                "or": "(fixture_id.lt.900000,fixture_id.gte.910000)",
-                "order": "match_time.asc",
-                "limit": "500",
-            },
-            timeout=40,
-        )
-        if response.status_code >= 300:
-            raise RuntimeError(f"games read failed: HTTP {response.status_code} {response.text[:240]}")
-        return response.json()
-
-    def update_game_odds(self, fixture_id: int | str, prices: dict[str, str]) -> None:
-        """Update only the three odds columns; do not pass through the result-locking RPC."""
-        response = requests.patch(
-            f"{self.url}/rest/v1/games",
-            headers={**self.headers, "Prefer": "return=minimal"},
-            params={"fixture_id": f"eq.{fixture_id}"},
-            json={
-                "home_odds": prices["1"],
-                "draw_odds": prices["X"],
-                "away_odds": prices["2"],
-                "odds_locked": True,
-            },
-            timeout=40,
-        )
-        if response.status_code >= 300:
-            raise RuntimeError(
-                f"odds update failed for fixture {fixture_id}: "
-                f"HTTP {response.status_code} {response.text[:240]}"
-            )
 
 
 def sports_connection(api_key: str) -> tuple[str, dict[str, str]]:
@@ -505,109 +480,6 @@ def tag_round(code: str, name: str | None) -> str:
     return f"{code}|{label}" if label else code
 
 
-def odds_from_value(value) -> dict[str, str | None] | None:
-    if not isinstance(value, dict):
-        return None
-    parsed = extract_1x2({"response": {"odds": value}})
-    if parsed:
-        return parsed
-    home = clamp_odd(value.get("1") or value.get("home") or value.get("home_win"))
-    draw = clamp_odd(value.get("X") or value.get("x") or value.get("draw"))
-    away = clamp_odd(value.get("2") or value.get("away") or value.get("away_win"))
-    if home and draw and away:
-        return {"1": home, "X": draw, "2": away}
-    return None
-
-
-def extract_event_odds(payload: dict | None) -> dict[str, str | None] | None:
-    """Extract the Bet365 1-X-2 market from Smart API's football-event-odds response."""
-    if not isinstance(payload, dict):
-        return None
-    response = payload.get("response")
-    if not isinstance(response, dict):
-        return None
-    provider = response.get("odds")
-    if not isinstance(provider, dict):
-        return None
-
-    # Smart API returns 1X2 in two observed shapes:
-    # 1) response.odds.odds.resolvedOddsMarket.selections
-    # 2) response.odds.odds.matchfactMarkets / oddsTabMarkets
-    # Parse the market-based shapes first; extract_1x2 filters specifically
-    # for "Full Time Result" / "who_will_win" so other markets are ignored.
-    parsed = extract_1x2({"response": {"odds": provider}})
-    if parsed:
-        return parsed
-
-    market_container = provider.get("odds")
-    if not isinstance(market_container, dict):
-        return None
-    market = market_container.get("resolvedOddsMarket")
-    if not isinstance(market, dict):
-        return None
-    selections = market.get("selections")
-    if not isinstance(selections, list):
-        return None
-
-    prices: dict[str, str | None] = {"1": None, "X": None, "2": None}
-    for selection in selections:
-        if not isinstance(selection, dict):
-            continue
-        name = str(selection.get("name") or "").strip().upper()
-        if name in prices:
-            prices[name] = clamp_odd(selection.get("oddsDecimal"))
-    return prices if all(prices.values()) else None
-
-
-def refresh_game_odds(client: FootballClient, db: Database, game: dict, now: datetime,
-                      country_code: str, force: bool = False) -> bool:
-    fixture_id = game.get("fixture_id")
-    kickoff = game.get("match_time")
-    if not fixture_id or not kickoff:
-        return False
-    if str(game.get("status") or "upcoming").lower() not in {"upcoming", "ns", "not started"}:
-        return False
-    if parse_time(kickoff) <= now:
-        return False
-
-    cache_key = f"event-odds:{fixture_id}:{now.date().isoformat()}:{country_code}"
-    if not force:
-        cached = db.rpc("read_api_cache", {"p_key": cache_key})
-        if isinstance(cached, dict) and cached.get("_odds_checked") is True:
-            cached_prices = cached.get("odds")
-            # A successful 1X2 result is stable enough to keep for the day.
-            if isinstance(cached_prices, dict) and all(cached_prices.get(k) for k in ("1", "X", "2")):
-                return False
-            # An empty result is not permanent: bookmakers often publish odds later.
-            # Retry after six hours. Legacy cache entries without checked_at are retried.
-            checked_at = cached.get("checked_at")
-            if checked_at:
-                try:
-                    checked_time = parse_time(str(checked_at))
-                    if now - checked_time < timedelta(hours=6):
-                        return False
-                except (TypeError, ValueError):
-                    pass
-
-    result = client.get(ODDS_ENDPOINT, {"eventid": str(fixture_id), "countrycode": country_code}, "odds")
-    if result is None:
-        return False
-    prices = extract_event_odds(result)
-    # Cache empty responses temporarily, not for the entire day: odds may appear later.
-    db.rpc("write_api_cache", {
-        "p_key": cache_key,
-        "p_payload": {"_odds_checked": True, "checked_at": now.isoformat(), "odds": prices},
-    })
-    if not prices:
-        log.info("No 1X2 odds currently available for fixture %s.", fixture_id)
-        return False
-
-    # Update only the odds columns directly. The result-sync RPC may intentionally
-    # lock odds after their first write, which would block subsequent daily refreshes.
-    db.update_game_odds(fixture_id, prices)
-    log.info("Updated 1X2 odds for fixture %s: %s / %s / %s", fixture_id, prices["1"], prices["X"], prices["2"])
-    return True
-
 
 def in_board_window(kickoff: str, now: datetime) -> bool:
     kick = parse_time(kickoff)
@@ -640,6 +512,8 @@ def finished_state(status: dict) -> str:
 def payload_from_match(round_name: str, match: dict, *, confirm: bool = False, odds: dict[str, str | None] | None = None) -> dict | None:
     home = match.get("home") or {}
     away = match.get("away") or {}
+    if not include_fixture(round_name.split("|", 1)[0], home.get("name"), away.get("name")):
+        return None
     status = match.get("status") or {}
     fixture_id = match.get("id")
     kickoff = status.get("utcTime")
@@ -689,8 +563,9 @@ def rapid_row(code: str, round_name: str, match: dict, now: datetime) -> dict | 
     if state == "extra":
         return None
     confirm = should_confirm(state, kickoff, now)
-    odds = None if confirm else odds_from_value(match.get("odds") if isinstance(match.get("odds"), dict) else None)
-    return payload_from_match(round_name, match, confirm=confirm, odds=odds)
+    # Odds are sourced exclusively from the Winner browser extension.
+    # The external sports feed is used only for fixtures, status and results.
+    return payload_from_match(round_name, match, confirm=confirm, odds=None)
 
 
 def api_row(code: str, fixture: dict, now: datetime) -> dict | None:
@@ -699,11 +574,14 @@ def api_row(code: str, fixture: dict, now: datetime) -> dict | None:
     if not kickoff or not in_board_window(kickoff, now):
         return None
     league = fixture.get("league") or {}
+    teams = fixture.get("teams") or {}
+    if not include_fixture(code, (teams.get("home") or {}).get("name"), (teams.get("away") or {}).get("name")):
+        return None
     round_name = tag_round(code, league.get("round") or league.get("name"))
     if "women" in round_name.lower():
         return None
-    odds = odds_from_value(fixture.get("odds") if isinstance(fixture.get("odds"), dict) else None)
-    built = build_payload(fixture, odds, lock_odds=bool(odds), confirm=False)
+    # Never import odds from the external sports API; Winner is the sole odds source.
+    built = build_payload(fixture, None, lock_odds=False, confirm=False)
     if not built:
         return None
     built["p_round_name"] = round_name
@@ -755,7 +633,11 @@ def rows_from_payload(payload: dict | None, code: str, now: datetime) -> list[di
 
 
 def load_league(client: FootballClient, db: Database, league_id: int, code: str, now: datetime) -> list[dict]:
-    cache_key = f"league-bundle:{league_id}:{now.date().isoformat()}"
+    # Two-hour cache buckets keep result checks reasonably fresh while staying
+    # below the configured 80-request daily limit (5 leagues x 12 buckets).
+    bucket = now.replace(minute=0, second=0, microsecond=0)
+    bucket = bucket.replace(hour=(bucket.hour // 2) * 2)
+    cache_key = f"league-bundle:{league_id}:{bucket.strftime('%Y%m%d-%H')}"
     cached = db.rpc("read_api_cache", {"p_key": cache_key})
     if isinstance(cached, dict) and "response" in cached:
         return rows_from_payload(cached, code, now)
@@ -820,23 +702,9 @@ def main() -> int:
         log.error("%s database updates failed.", failures)
         return 1
 
-    # Refresh odds separately from fixture discovery. Each match is checked at most
-    # once per UTC day unless FORCE_ODDS_REFRESH=true is set for a manual run.
-    country_code = os.environ.get("ODDS_COUNTRY_CODE", DEFAULT_ODDS_COUNTRY).strip().upper()
-    force_odds = os.environ.get("FORCE_ODDS_REFRESH", "false").strip().lower() in {"1", "true", "yes"}
-    if RAPIDAPI_HOST in client.base:
-        try:
-            games = db.games()
-            updated = 0
-            for game in games:
-                if client.stopped:
-                    break
-                if refresh_game_odds(client, db, game, now, country_code, force=force_odds):
-                    updated += 1
-            log.info("Odds refresh completed: %s matches updated; force=%s; country=%s.", updated, force_odds, country_code)
-        except RuntimeError:
-            log.exception("Odds refresh failed; fixture sync has already completed.")
-            return 1
+    # Intentionally no external odds refresh here. Winner extension is the only
+    # source allowed to write 1X2 odds; this job only syncs fixtures and results.
+    log.info("External odds import is disabled; Winner extension remains authoritative for 1X2 odds.")
     return 0
 
 

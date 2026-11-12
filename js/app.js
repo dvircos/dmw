@@ -21,6 +21,7 @@ const state = {
   gameMarkets: [],
   marketSettings: { handicap_ft: true, total_goals_2_5: true, btts: true },
   expandedGameId: null,
+  expandedMarketKey: null,
   gameView: "active",
   bets: [],
   betsFilter: "pending",
@@ -207,11 +208,12 @@ function renderGames() {
   const source = isArchive ? state.archiveGames : state.games;
   const games = source
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
-    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query))
+    .filter((game) => !query || (String(game.home_team || "") + " " + String(game.away_team || "")).toLowerCase().includes(query))
     .sort((a, b) => isArchive
       ? new Date(b.match_time) - new Date(a.match_time)
       : (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.match_time) - new Date(b.match_time));
   root.replaceChildren();
+
   if (isArchive) {
     const heading = document.createElement("div");
     heading.className = "mb-3 flex items-center justify-between gap-2";
@@ -220,10 +222,11 @@ function renderGames() {
     title.textContent = "ארכיון משחקים";
     const count = document.createElement("span");
     count.className = "text-xs text-slate-400";
-    count.textContent = `${state.archiveGames.length} משחקים נטענו`;
+    count.textContent = state.archiveGames.length + " משחקים נטענו";
     heading.append(title, count);
     root.append(heading);
   }
+
   if (!games.length) {
     const message = query ? "לא נמצאה קבוצה" : isArchive ? "אין משחקים בארכיון" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו";
     const placeholder = document.createElement("p");
@@ -233,136 +236,210 @@ function renderGames() {
     if (isArchive && state.archiveHasMore) appendArchiveMore(root);
     return;
   }
+
   games.forEach((game) => {
+    const gameId = Number(game.id);
+    const expanded = !isArchive && state.expandedGameId === gameId;
     const card = document.createElement("article");
-    card.className = "mb-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-panel shadow-lg";
+    card.className = "game-card mb-2 overflow-hidden rounded-2xl border border-slate-700/60 bg-panel shadow-lg" + (expanded ? " is-expanded" : "");
+
     const body = document.createElement("div");
-    body.className = "p-4";
+    body.className = "game-card-body";
+
     const head = document.createElement("div");
-    head.className = "mb-3 flex items-center justify-between gap-2 text-xs text-slate-400";
+    head.className = "game-match-meta-row";
     const time = document.createElement("span");
     const countdown = !isArchive ? countdownLabel(game) : "";
+    time.className = "game-match-time";
     time.textContent = [when(game.match_time), countdown].filter(Boolean).join(" · ");
+
     const badge = document.createElement("span");
-    badge.className = game.status === "live" ? "font-bold text-rose-400" : game.status === "finished" ? "font-bold text-emerald-400" : "text-slate-400";
+    badge.className = game.status === "live"
+      ? "game-status is-live"
+      : game.status === "finished"
+        ? "game-status is-finished"
+        : "game-status";
     const liveLabel = game.live_status_text === "HT"
       ? "מחצית"
       : game.live_status_text
-        ? `● חי · ${game.live_status_text}׳`
+        ? "● חי · " + game.live_status_text + "׳"
         : "● חי";
     badge.textContent = game.status === "live" ? liveLabel : (GAME_STATUS[game.status] || game.status);
-    head.append(time, badge);
-    const teams = document.createElement("div");
-    teams.className = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";
-    const home = teamColumn(game.home_flag, game.home_team);
-    const away = teamColumn(game.away_flag, game.away_team);
-    const score = document.createElement("div");
-    score.className = "min-w-14 text-center text-xl font-extrabold";
-    score.dir = "ltr";
-    score.textContent = game.status === "live" || game.status === "finished" ? `${game.away_score} - ${game.home_score}` : "VS";
-    teams.append(home, score, away);
-    body.append(head, teams);
 
-    const stake = pendingStake(game);
-    if (stake > 0) {
-      const badgeStake = document.createElement("p");
-      badgeStake.className = "mt-3 inline-flex rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold";
-      badgeStake.textContent = `הימרת ₪${Number.isInteger(stake) ? String(stake) : money(stake)}`;
-      body.append(badgeStake);
+    const matchToggle = document.createElement(isArchive ? "div" : "button");
+    if (!isArchive) {
+      matchToggle.type = "button";
+      matchToggle.className = "game-match-toggle";
+      matchToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      matchToggle.setAttribute("aria-label", (expanded ? "סגירת" : "פתיחת") + " הימורים: " + game.home_team + " נגד " + game.away_team);
+    } else {
+      matchToggle.className = "game-match-toggle is-static";
     }
 
+    const metaRow = document.createElement("div");
+    metaRow.className = "game-match-meta-row";
+    metaRow.append(time, badge);
+    const chevron = document.createElement("span");
+    chevron.className = "game-match-chevron";
+    chevron.textContent = expanded ? "⌃" : "⌄";
+    if (!isArchive) metaRow.append(chevron);
+
+    const teams = document.createElement("div");
+    teams.className = "game-teams-row";
+    teams.dir = "rtl";
+
+    const home = document.createElement("div");
+    home.className = "game-team-inline";
+    const homeName = document.createElement("span");
+    homeName.className = "game-team-name";
+    homeName.textContent = game.home_team || "קבוצה ביתית";
+    home.append(homeName, flag(game.home_flag));
+
+    const away = document.createElement("div");
+    away.className = "game-team-inline away";
+    away.append(flag(game.away_flag));
+    const awayName = document.createElement("span");
+    awayName.className = "game-team-name";
+    awayName.textContent = game.away_team || "קבוצת חוץ";
+    away.append(awayName);
+
+    const score = document.createElement("span");
+    score.className = "game-versus";
+    score.dir = "ltr";
+    score.textContent = game.status === "live" || game.status === "finished"
+      ? game.away_score + " - " + game.home_score
+      : "VS";
+    teams.append(home, score, away);
+    matchToggle.append(metaRow, teams);
+
+    if (!isArchive) {
+      matchToggle.addEventListener("click", () => {
+        state.expandedGameId = expanded ? null : gameId;
+        state.expandedMarketKey = null;
+        renderGames();
+      });
+    }
+    body.append(matchToggle);
+    card.append(body);
+
     const enabledMarkets = isArchive ? [] : state.gameMarkets.filter((market) =>
-      Number(market.game_id) === Number(game.id) &&
+      Number(market.game_id) === gameId &&
       market.active !== false &&
       state.marketSettings[market.market_key] !== false
     );
-    const open = !isArchive && game.status === "upcoming" && new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
-    const hasMainOdds = !isArchive && [game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01);
+    const canPlaceBet = !isArchive &&
+      game.status === "upcoming" &&
+      new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
+    const hasMainOdds = !isArchive && [game.home_odds, game.draw_odds, game.away_odds]
+      .some((value) => Number(value) >= 1.01);
 
-    // Main 1X2 odds are always visible directly on the game card.
-    if (hasMainOdds) {
-      const mainOdds = document.createElement("section");
-      mainOdds.className = "mt-4";
-      const title = document.createElement("h3");
-      title.className = "mb-2 text-center text-xs font-bold text-slate-400";
-      title.textContent = "תוצאת המשחק";
-      const grid = document.createElement("div");
-      grid.className = "grid grid-cols-3 gap-2";
-      [["1",game.home_odds,"1 · בית"],["X",game.draw_odds,"X · תיקו"],["2",game.away_odds,"2 · חוץ"]].forEach(([selection,price,label]) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.disabled = !open || !Number.isFinite(Number(price)) || Number(price) < 1.01;
-        const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && !leg.marketId && leg.selection === selection);
-        button.setAttribute("aria-pressed", picked ? "true" : "false");
-        button.className = "rounded-xl border px-2 py-2.5 text-center transition active:scale-[.98] disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-ink/35");
-        const l = document.createElement("span"); l.className="block text-[11px] text-slate-400"; l.textContent=label;
-        const v = document.createElement("strong"); v.className="mt-1 block text-lg font-extrabold text-mint"; v.dir="ltr"; v.textContent=Number(price)>=1.01?Number(price).toFixed(2):"—";
-        button.append(l,v);
-        if (!button.disabled) button.addEventListener("click",()=>toggleSlip(game,selection,Number(price)));
-        grid.append(button);
-      });
-      mainOdds.append(title, grid);
-      body.append(mainOdds);
-    }
-
-    if (enabledMarkets.length) {
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      const expanded = state.expandedGameId === Number(game.id);
-      toggle.setAttribute("aria-label", expanded ? "סגירת שווקים נוספים" : "הצגת שווקים נוספים");
-      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
-      toggle.className = "mx-auto mt-3 flex min-h-9 items-center justify-center gap-2 rounded-full border border-slate-700/60 px-4 text-xs font-bold text-slate-300 transition hover:border-gold/50 hover:text-gold";
-      const label = document.createElement("span");
-      label.textContent = expanded ? "הסתרת שווקים" : `${enabledMarkets.length} שווקים נוספים`;
-      const toggleIcon = document.createElement("span");
-      toggleIcon.className = "text-base leading-none";
-      toggleIcon.textContent = expanded ? "⌃" : "⌄";
-      toggle.append(label, toggleIcon);
-      toggle.addEventListener("click", () => {
-        state.expandedGameId = expanded ? null : Number(game.id);
-        renderGames();
-      });
-      body.append(toggle);
-    }
-    card.append(body);
-
-    if (enabledMarkets.length && state.expandedGameId === Number(game.id)) {
+    if (expanded) {
       const panel = document.createElement("div");
-      panel.className = "space-y-4 border-t border-slate-700/60 bg-ink/20 p-4";
-      enabledMarkets.forEach((market) => {
-        const group = document.createElement("section");
-        group.className = "rounded-xl border border-slate-700/60 bg-panel p-3";
-        const title = document.createElement("h3");
-        title.className = "mb-3 text-sm font-extrabold text-slate-100";
-        title.textContent = market.market_key === "handicap_ft" && market.line != null
-          ? `${market.market_label || "הפרשי שערים"} (${Number(market.line) > 0 ? "+" : ""}${Number(market.line)})`
-          : market.market_label || "אפשרויות הימור";
-        const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+      panel.className = "game-expanded-panel";
+
+      const mainOdds = document.createElement("section");
+      mainOdds.className = "game-main-odds";
+      const title = document.createElement("h3");
+      title.className = "game-main-odds-title";
+      title.textContent = "תוצאת המשחק";
+      mainOdds.append(title);
+
+      if (hasMainOdds) {
         const grid = document.createElement("div");
-        grid.className = "grid grid-cols-2 gap-2";
-        outcomes.forEach((outcome) => {
-          const price = Number(outcome.price);
-          const button = document.createElement("button");
-          button.type = "button";
-          button.disabled = !open || !Number.isFinite(price) || price < 1.01;
-          const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && Number(leg.marketId) === Number(market.id) && leg.marketSelection === outcome.selection);
-          button.setAttribute("aria-pressed", picked ? "true" : "false");
-          button.className = "rounded-xl border px-2 py-3 text-center transition active:scale-[.98] disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-ink/50");
-          const label = document.createElement("span"); label.className="block text-xs text-slate-300"; label.textContent=outcome.label || outcome.selection;
-          const value = document.createElement("strong"); value.className="mt-1 block text-lg text-mint"; value.dir="ltr"; value.textContent=Number.isFinite(price)?price.toFixed(2):"—";
-          button.append(label,value);
-          if (!button.disabled) button.addEventListener("click",()=>toggleMarketSlip(game,market,outcome));
-          grid.append(button);
+        grid.className = "game-main-odds-grid";
+        [["1", game.home_odds, "1 · בית"], ["X", game.draw_odds, "X · תיקו"], ["2", game.away_odds, "2 · חוץ"]]
+          .forEach(([selection, price, label]) => {
+            const numericPrice = Number(price);
+            const picked = state.slip.some((leg) => leg.gameId === gameId && !leg.marketId && leg.selection === selection);
+            const button = document.createElement("button");
+            button.type = "button";
+            button.disabled = !canPlaceBet || !Number.isFinite(numericPrice) || numericPrice < 1.01;
+            button.setAttribute("aria-pressed", picked ? "true" : "false");
+            button.className = "game-odds-button" + (picked ? " is-picked" : "");
+            const outcomeLabel = document.createElement("span");
+            outcomeLabel.className = "game-odds-label";
+            outcomeLabel.textContent = label;
+            const value = document.createElement("strong");
+            value.className = "game-odds-value";
+            value.dir = "ltr";
+            value.textContent = numericPrice >= 1.01 ? numericPrice.toFixed(2) : "—";
+            button.append(outcomeLabel, value);
+            if (!button.disabled) button.addEventListener("click", () => toggleSlip(game, selection, numericPrice));
+            grid.append(button);
+          });
+        mainOdds.append(grid);
+      } else {
+        const unavailable = document.createElement("p");
+        unavailable.className = "game-no-odds";
+        unavailable.textContent = "אין כרגע יחסים זמינים לתוצאת המשחק";
+        mainOdds.append(unavailable);
+      }
+      panel.append(mainOdds);
+
+      enabledMarkets.forEach((market) => {
+        const marketKey = gameId + ":" + market.id;
+        const marketExpanded = state.expandedMarketKey === marketKey;
+        const group = document.createElement("section");
+        group.className = "game-market-group";
+
+        const marketToggle = document.createElement("button");
+        marketToggle.type = "button";
+        marketToggle.className = "game-market-toggle";
+        marketToggle.setAttribute("aria-expanded", marketExpanded ? "true" : "false");
+        const marketTitle = document.createElement("span");
+        marketTitle.textContent = market.market_key === "handicap_ft" && market.line != null
+          ? (market.market_label || "הפרשי שערים") + " (" + (Number(market.line) > 0 ? "+" : "") + Number(market.line) + ")"
+          : market.market_label || "אפשרויות הימור";
+        const marketChevron = document.createElement("span");
+        marketChevron.className = "game-market-chevron";
+        marketChevron.textContent = marketExpanded ? "⌃" : "⌄";
+        marketToggle.append(marketTitle, marketChevron);
+        marketToggle.addEventListener("click", () => {
+          state.expandedMarketKey = marketExpanded ? null : marketKey;
+          renderGames();
         });
-        group.append(title,grid); panel.append(group);
+        group.append(marketToggle);
+
+        if (marketExpanded) {
+          const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+          const grid = document.createElement("div");
+          grid.className = "game-market-outcomes";
+          outcomes.forEach((outcome) => {
+            const price = Number(outcome.price);
+            const button = document.createElement("button");
+            button.type = "button";
+            button.disabled = !canPlaceBet || !Number.isFinite(price) || price < 1.01;
+            const picked = state.slip.some((leg) => leg.gameId === gameId && Number(leg.marketId) === Number(market.id) && leg.marketSelection === outcome.selection);
+            button.setAttribute("aria-pressed", picked ? "true" : "false");
+            button.className = "game-odds-button game-secondary-odds" + (picked ? " is-picked" : "");
+            const label = document.createElement("span");
+            label.className = "game-odds-label";
+            label.textContent = outcome.label || outcome.selection;
+            const value = document.createElement("strong");
+            value.className = "game-odds-value";
+            value.dir = "ltr";
+            value.textContent = Number.isFinite(price) ? price.toFixed(2) : "—";
+            button.append(label, value);
+            if (!button.disabled) button.addEventListener("click", () => toggleMarketSlip(game, market, outcome));
+            grid.append(button);
+          });
+          group.append(grid);
+        }
+        panel.append(group);
       });
+
       if (!enabledMarkets.length) {
-        const none=document.createElement("p"); none.className="text-center text-xs text-slate-400"; none.textContent="אין כרגע שווקים זמינים למשחק הזה"; panel.append(none);
+        const none = document.createElement("p");
+        none.className = "game-no-odds";
+        none.textContent = "אין שווקים נוספים זמינים למשחק הזה";
+        panel.append(none);
       }
       card.append(panel);
     }
+
     root.append(card);
   });
+
   if (isArchive && state.archiveHasMore) appendArchiveMore(root);
 }
 

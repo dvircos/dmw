@@ -1,11 +1,10 @@
 name: SportStatsAPI result sync
 
 on:
-  # UTC hours 18-22 are the union needed to cover Israel 21:00-00:00
-  # in both standard time and daylight time. The script filters locally,
-  # so exactly four runs per day call the provider.
+  # Check every 30 minutes. The script calls SportStatsAPI only for leagues
+  # with at least one unconfirmed match kicked off in the previous 2 hours.
   schedule:
-    - cron: "0 18-22 * * *"
+    - cron: "*/30 * * * *"
 
 permissions:
   contents: read

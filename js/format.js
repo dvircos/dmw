@@ -56,6 +56,12 @@ export function slipLegs(bet) {
     return [{
       game_id: bet.game_id,
       bet_selection: bet.bet_selection,
+      market_id: bet.market_id,
+      market_key: bet.market_key,
+      market_selection: bet.market_selection,
+      market_label: bet.market_label,
+      market_outcome_label: bet.market_outcome_label,
+      market_line: bet.market_line,
       odds: bet.odds,
       status: bet.status,
       games: bet.games,

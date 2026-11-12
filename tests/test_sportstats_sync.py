@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from sync_sportstats import LEAGUES, parse_match
+from sync_sportstats import LEAGUES, SportStatsSync, parse_match
 
 
 class SportStatsParsingTests(unittest.TestCase):
@@ -40,6 +40,27 @@ class SportStatsParsingTests(unittest.TestCase):
         row = {"code": "m1", "status": "NS", "start_at": "2026-11-21T12:30:00Z",
                "home_team": {"name": "A"}, "away_team": {"code": "b", "name": "B"}}
         self.assertIsNone(parse_match(row, {"code": "l30", "label": "england", "name": "Premier League"}))
+
+    def test_full_time_result_uses_regular_time_team_scores(self):
+        row = {
+            "status": "FT", "status_code": "final",
+            "home_team": {"score": 0}, "away_team": {"score": 1},
+            "full_time_score": "[0-1]",
+            "periods": [{"period": "FT", "home": 0, "away": 1}],
+        }
+        self.assertEqual(SportStatsSync.final_score(row), (0, 1))
+
+    def test_extra_time_and_unconfirmed_statuses_are_not_settled(self):
+        for status, code in [("AET", "final"), ("PEN", "final"), ("2H", "live"), ("FT", "in_progress")]:
+            row = {"status": status, "status_code": code,
+                   "home_team": {"score": 2}, "away_team": {"score": 1},
+                   "full_time_score": "[1-1]"}
+            self.assertIsNone(SportStatsSync.final_score(row))
+
+    def test_final_score_string_is_a_safe_fallback(self):
+        row = {"status": "FT", "status_code": "final",
+               "home_team": {}, "away_team": {}, "full_time_score": "[2-1]"}
+        self.assertEqual(SportStatsSync.final_score(row), (2, 1))
 
 
 if __name__ == "__main__":

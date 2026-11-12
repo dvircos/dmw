@@ -313,9 +313,10 @@ class SportStatsSync:
     def final_score(row: dict[str, Any]) -> tuple[int, int] | None:
         # Only FT is accepted: AET/PEN are intentionally excluded because
         # settlement must use the regular-time score, not extra time/shootouts.
-        if str(row.get("status") or "").upper() != "FT":
-            return None
-        if str(row.get("status_code") or "").lower() != "final":
+        # SportStatsAPI documents soccer finality with status="FT".
+        # status_code is a cross-sport normalization field; do not require
+        # its value to be the literal "final" for a canonical soccer FT row.
+        if str(row.get("status") or "").strip().upper() != "FT":
             return None
         home = row.get("home_team") or {}
         away = row.get("away_team") or {}

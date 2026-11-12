@@ -137,8 +137,8 @@ begin
 
     select g.id into v_game_id
       from public.games g
-     where lower(trim(g.home_team))=lower(v_home)
-       and lower(trim(g.away_team))=lower(v_away)
+     where (lower(trim(g.home_team))=lower(v_home) or lower(trim(coalesce(g.sportstats_api_home_name,'')))=lower(v_home))
+       and (lower(trim(g.away_team))=lower(v_away) or lower(trim(coalesce(g.sportstats_api_away_name,'')))=lower(v_away))
        and abs(extract(epoch from (g.match_time-v_kickoff))) <= 1800
        and g.status='upcoming'
      order by abs(extract(epoch from (g.match_time-v_kickoff)))

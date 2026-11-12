@@ -1,5 +1,5 @@
--- Winner odds import. Run once in Supabase SQL Editor.
--- Only authenticated users may import odds; no service-role key is exposed to the extension.
+-- Harden the public odds-import RPC and cover the group creator foreign key.
+-- The Winner browser extension must use an authenticated administrator account.
 create or replace function public.import_winner_odds(p_matches jsonb)
 returns jsonb
 language plpgsql
@@ -16,14 +16,16 @@ declare
   v_away_odds numeric;
   v_updated integer := 0;
   v_rows integer := 0;
-  v_processed integer := 0;
   v_valid integer := 0;
 begin
-  if auth.uid() is null then
-    raise exception 'authentication required';
+  if not public.admin_is_admin() then
+    raise exception 'אין הרשאת מנהל';
   end if;
   if jsonb_typeof(p_matches) <> 'array' then
     raise exception 'matches must be an array';
+  end if;
+  if jsonb_array_length(p_matches) > 500 then
+    raise exception 'too many matches in one import';
   end if;
 
   for item in select value from jsonb_array_elements(p_matches)
@@ -68,5 +70,5 @@ begin
 end;
 $$;
 
-revoke all on function public.import_winner_odds(jsonb) from public, anon;
-grant execute on function public.import_winner_odds(jsonb) to authenticated;
+create index if not exists app_groups_created_by_idx
+  on public.app_groups (created_by);

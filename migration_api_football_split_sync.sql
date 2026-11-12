@@ -236,7 +236,7 @@ create or replace function public.sync_api_football_live(
   p_away_score integer
 ) returns jsonb
 language plpgsql security definer set search_path=public
-as $
+as $$
 declare v_game public.games%rowtype;
 begin
   if p_home_score is not null and p_home_score < 0 or p_away_score is not null and p_away_score < 0 then

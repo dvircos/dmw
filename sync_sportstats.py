@@ -66,7 +66,7 @@ CLUBS = {
     "celta vigo": ("סלטה ויגו", 558),
     "barcelona": ("ברצלונה", 81),
     "villarreal": ("ויאריאל", 94),
-    "hull": ("האל סיטי", 64),
+    "hull": ("האל סיטי", 322),
     "brighton": ("ברייטון", 397),
     "racing santander": ("ראסינג סנטנדר", 745),
     "real sociedad": ("ריאל סוסיאדד", 92),
@@ -136,6 +136,7 @@ def parse_match(row: dict[str, Any], league: dict[str, str]) -> dict[str, Any] |
     home_name = str(home.get("display_name") or home.get("name") or "").strip()
     away_name = str(away.get("display_name") or away.get("name") or "").strip()
     if not home_name or not away_name:
+        log.warning("Rejected fixture %s: missing home/away team name", code or "<no-code>")
         return None
     try:
         kickoff = datetime.fromisoformat(str(start).replace("Z", "+00:00"))
@@ -144,6 +145,17 @@ def parse_match(row: dict[str, Any], league: dict[str, str]) -> dict[str, Any] |
         home_code = str(home.get("code") or "").strip()
         away_code = str(away.get("code") or "").strip()
         if not home_code or not away_code:
+            log.warning("Rejected fixture %s: missing provider team ID", code)
+            return None
+        if home_code == away_code:
+            log.error("Rejected fixture %s: home and away provider IDs are identical (%s)", code, home_code)
+            return None
+        if normalize(home_name) == normalize(away_name):
+            log.error("Rejected fixture %s: home and away provider names are identical (%s)", code, home_name)
+            return None
+        home_display, away_display = team_display(home_name), team_display(away_name)
+        if normalize(home_display) == normalize(away_display):
+            log.error("Rejected fixture %s: translated home/away names collide (%s)", code, home_display)
             return None
     except (TypeError, ValueError):
         return None

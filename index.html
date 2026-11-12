@@ -222,10 +222,6 @@
             <button type="button" data-league="england" class="league-tab shrink-0 rounded-xl px-3 py-2 font-medium text-mist">ליגה אנגלית</button>
             <button type="button" data-league="nations" class="league-tab shrink-0 rounded-xl px-3 py-2 font-medium text-mist">ליגת האומות</button>
           </div>
-          <div class="grid grid-cols-2 gap-1 rounded-xl border border-slate-700/50 bg-ink/60 p-1 text-sm">
-            <button type="button" data-game-view="active" aria-pressed="true" class="game-view-tab rounded-lg bg-gold px-3 py-2 font-extrabold text-ink">משחקים פעילים</button>
-            <button type="button" data-game-view="archive" aria-pressed="false" class="game-view-tab rounded-lg px-3 py-2 font-medium text-slate-300">ארכיון</button>
-          </div>
           <div class="search-wrap">
             <svg viewBox="0 0 24 24" class="h-5 w-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
             <input id="team-search" type="search" placeholder="חיפוש קבוצה" class="w-full rounded-2xl border border-slate-700/50 bg-panel px-4 py-3 text-sm text-slate-50 outline-none focus:border-gold" />
@@ -280,7 +276,7 @@
       </div>
 
       <nav class="fixed bottom-0 left-1/2 z-40 w-full max-w-xl -translate-x-1/2 border-t border-slate-700/50 bg-ink/95 backdrop-blur">
-        <div class="grid grid-cols-4 pb-[env(safe-area-inset-bottom)]">
+        <div class="grid grid-cols-5 pb-[env(safe-area-inset-bottom)]">
           <button type="button" data-tab="games" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-gold">
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 3c2.5 2.8 2.5 15.2 0 18M12 3c-2.5 2.8-2.5 15.2 0 18M3 12h18"/></svg>
             משחקים
@@ -289,6 +285,10 @@
             <span id="nav-bets-badge" class="hidden absolute left-[calc(50%+9px)] top-1 min-w-4 rounded-full bg-rose-500 px-1 text-center text-[10px] font-extrabold leading-4 text-white shadow">0</span>
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v16l-3-2-3 2-3-2-3 2z"/><path d="M9 9h6M9 13h4"/></svg>
             הימורים
+          </button>
+          <button type="button" data-tab="archive" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-slate-400">
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v4H4zM6 9v10h12V9M9 13h6M9 16h6"/></svg>
+            ארכיון
           </button>
           <button type="button" data-tab="board" class="nav-btn flex flex-col items-center gap-1 py-3 text-xs text-slate-400">
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M4 19h16"/></svg>
@@ -343,6 +343,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261112-3"></script>
+    <script type="module" src="./js/app.js?v=20261112-4"></script>
   </body>
 </html>

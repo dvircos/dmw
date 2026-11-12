@@ -10,6 +10,9 @@ const state = {
   user: null,
   balance: 0,
   games: [],
+  gameMarkets: [],
+  marketSettings: { handicap_ft: true, total_goals_2_5: true, btts: true },
+  expandedGameId: null,
   bets: [],
   betsFilter: "pending",
   board: [],
@@ -149,15 +152,8 @@ function renderGames() {
   const query = state.query.trim().toLowerCase();
   const games = state.games
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
-    .filter((game) => {
-      if (!query) return true;
-      return `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query);
-    })
-    .sort((a, b) => {
-      const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
-      if (byStatus) return byStatus;
-      return new Date(a.match_time) - new Date(b.match_time);
-    });
+    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query))
+    .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || new Date(a.match_time) - new Date(b.match_time));
   if (!games.length) {
     empty(root, query ? "לא נמצאה קבוצה" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו");
     return;
@@ -165,33 +161,17 @@ function renderGames() {
   root.replaceChildren();
   games.forEach((game) => {
     const card = document.createElement("article");
-    card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
+    card.className = "mb-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-panel shadow-lg";
+    const body = document.createElement("div");
+    body.className = "p-4";
     const head = document.createElement("div");
-    head.className = "mb-3 flex items-center justify-center gap-2 text-xs font-medium text-slate-400";
+    head.className = "mb-3 flex items-center justify-between gap-2 text-xs text-slate-400";
     const time = document.createElement("span");
+    time.textContent = when(game.match_time);
     const badge = document.createElement("span");
-    badge.className = game.status === "live" ? "inline-flex items-center gap-1 font-bold text-rose-400" : "text-slate-400";
-    if (game.status === "live") {
-      const dot = document.createElement("span");
-      dot.className = "live-dot inline-block h-2 w-2 rounded-full bg-rose-400";
-      badge.append(dot, document.createTextNode(" חי"));
-    } else {
-      badge.textContent = GAME_STATUS[game.status] || game.status;
-    }
-    const marks = document.createElement("div");
-    marks.className = "flex items-center gap-2";
-    const soon = countdownLabel(game);
-    if (soon) {
-      const clock = document.createElement("span");
-      clock.className = "rounded-full bg-gold/15 px-2 py-0.5 font-bold text-gold";
-      clock.textContent = soon;
-      marks.append(clock);
-    }
-    const statusText = game.status === "live" ? "בשידור חי" : (GAME_STATUS[game.status] || game.status);
-    time.textContent = `${statusText} | ${when(game.match_time)}`;
-    marks.append(badge);
-    head.append(time);
-
+    badge.className = game.status === "live" ? "font-bold text-rose-400" : "text-slate-400";
+    badge.textContent = game.status === "live" ? "● חי" : (GAME_STATUS[game.status] || game.status);
+    head.append(time, badge);
     const teams = document.createElement("div");
     teams.className = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";
     const home = teamColumn(game.home_flag, game.home_team);
@@ -201,39 +181,88 @@ function renderGames() {
     score.dir = "ltr";
     score.textContent = game.status === "live" || game.status === "finished" ? `${game.home_score} - ${game.away_score}` : "VS";
     teams.append(home, score, away);
+    body.append(head, teams);
 
-    const odds = document.createElement("div");
-    odds.className = "mt-4 grid grid-cols-3 gap-2";
-    const open = canBet(game);
-    [["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]].forEach(([selection, price]) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && leg.selection === selection);
-      button.className = `rounded-2xl border px-2 py-2 text-center disabled:opacity-40 ${picked ? "border-gold bg-gold/20 ring-2 ring-gold" : "border-slate-700/50 bg-ink/60"}`;
-      button.disabled = !open;
-      const label = document.createElement("div");
-      label.className = "text-[11px] text-slate-400";
-      label.textContent = selection === "1" ? "1 בית" : selection === "2" ? "2 חוץ" : "X תיקו";
-      const value = document.createElement("div");
-      value.className = "text-lg font-extrabold text-mint";
-      value.dir = "ltr";
-      value.textContent = price ? Number(price).toFixed(2) : "—";
-      button.append(label, value);
-      if (open) {
-        button.addEventListener("click", () => toggleSlip(game, selection, price));
-      }
-      odds.append(button);
-    });
-    card.append(head, teams);
     const stake = pendingStake(game);
     if (stake > 0) {
-      const openBet = document.createElement("p");
-      openBet.className = "mt-3 inline-flex rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold";
-      const shown = Number.isInteger(stake) ? String(stake) : money(stake);
-      openBet.textContent = `המרת ₪${shown}`;
-      card.append(openBet);
+      const badgeStake = document.createElement("p");
+      badgeStake.className = "mt-3 inline-flex rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-bold text-gold";
+      badgeStake.textContent = `הימרת ₪${Number.isInteger(stake) ? String(stake) : money(stake)}`;
+      body.append(badgeStake);
     }
-    card.append(odds);
+
+    const enabledMarkets = state.gameMarkets.filter((market) =>
+      Number(market.game_id) === Number(game.id) &&
+      market.active !== false &&
+      state.marketSettings[market.market_key] !== false
+    );
+    const open = game.status === "upcoming" && new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "mt-4 flex w-full items-center justify-between rounded-xl border border-gold/30 bg-gold/10 px-3 py-3 text-sm font-extrabold text-gold";
+    const toggleLabel = document.createElement("span");
+    toggleLabel.textContent = `פתיחת אפשרויות הימור · ${enabledMarkets.length + 1} שווקים זמינים`;
+    const toggleIcon = document.createElement("span");
+    toggleIcon.textContent = state.expandedGameId === Number(game.id) ? "⌃" : "⌄";
+    toggle.append(toggleLabel, toggleIcon);
+    toggle.addEventListener("click", () => {
+      state.expandedGameId = state.expandedGameId === Number(game.id) ? null : Number(game.id);
+      renderGames();
+    });
+    body.append(toggle);
+    card.append(body);
+
+    if (state.expandedGameId === Number(game.id)) {
+      const panel = document.createElement("div");
+      panel.className = "space-y-4 border-t border-slate-700/60 bg-ink/20 p-4";
+      if ([game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01)) {
+        const group = document.createElement("section");
+        const title = document.createElement("h3");
+        title.className = "mb-2 text-sm font-extrabold text-slate-100";
+        title.textContent = "תוצאת המשחק · 1X2";
+        const grid = document.createElement("div");
+        grid.className = "grid grid-cols-3 gap-2";
+        [["1",game.home_odds,"1 · בית"],["X",game.draw_odds,"X · תיקו"],["2",game.away_odds,"2 · חוץ"]].forEach(([selection,price,label]) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.disabled = !open || !Number.isFinite(Number(price)) || Number(price) < 1.01;
+          button.className = "rounded-xl border border-slate-700/70 bg-panel px-2 py-3 text-center disabled:opacity-40";
+          const l = document.createElement("span"); l.className="block text-[11px] text-slate-400"; l.textContent=label;
+          const v = document.createElement("strong"); v.className="mt-1 block text-lg text-mint"; v.dir="ltr"; v.textContent=Number(price)>=1.01?Number(price).toFixed(2):"—";
+          button.append(l,v);
+          if (!button.disabled) button.addEventListener("click",()=>openSheet(game,selection,Number(price)));
+          grid.append(button);
+        });
+        group.append(title,grid); panel.append(group);
+      }
+      enabledMarkets.forEach((market) => {
+        const group = document.createElement("section");
+        group.className = "rounded-xl border border-slate-700/60 bg-panel p-3";
+        const title = document.createElement("h3");
+        title.className = "mb-3 text-sm font-extrabold text-slate-100";
+        title.textContent = market.market_label || "אפשרויות הימור";
+        const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
+        const grid = document.createElement("div");
+        grid.className = "grid grid-cols-2 gap-2";
+        outcomes.forEach((outcome) => {
+          const price = Number(outcome.price);
+          const button = document.createElement("button");
+          button.type = "button";
+          button.disabled = !open || !Number.isFinite(price) || price < 1.01;
+          button.className = "rounded-xl border border-slate-700/70 bg-ink/50 px-2 py-3 text-center transition active:scale-[.98] disabled:opacity-40";
+          const label = document.createElement("span"); label.className="block text-xs text-slate-300"; label.textContent=outcome.label || outcome.selection;
+          const value = document.createElement("strong"); value.className="mt-1 block text-lg text-mint"; value.dir="ltr"; value.textContent=Number.isFinite(price)?price.toFixed(2):"—";
+          button.append(label,value);
+          if (!button.disabled) button.addEventListener("click",()=>openMarketSheet(game,market,outcome));
+          grid.append(button);
+        });
+        group.append(title,grid); panel.append(group);
+      });
+      if (!enabledMarkets.length && ![game.home_odds,game.draw_odds,game.away_odds].some((v)=>Number(v)>=1.01)) {
+        const none=document.createElement("p"); none.className="text-center text-xs text-slate-400"; none.textContent="אין כרגע שווקים זמינים למשחק הזה"; panel.append(none);
+      }
+      card.append(panel);
+    }
     root.append(card);
   });
 }
@@ -311,10 +340,10 @@ function renderBets() {
     heading.className = "min-w-0";
     const title = document.createElement("p");
     title.className = "font-bold leading-6 text-slate-50";
-    title.textContent = combined ? `טופס משולב · ${legs.length} משחקים` : `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
+    title.textContent = bet.market_label ? `${game.home_team || "משחק"} נגד ${game.away_team || ""} · ${bet.market_label}` : combined ? `טופס משולב · ${legs.length} משחקים` : `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
     const sub = document.createElement("p");
     sub.className = "mt-1 text-xs text-slate-400";
-    sub.textContent = combined ? "מספר משחקים בטופס אחד" : when(game.match_time);
+    sub.textContent = bet.market_outcome_label ? `${when(game.match_time)} · ${bet.market_outcome_label}` : combined ? "מספר משחקים בטופס אחד" : when(game.match_time);
     heading.append(title, sub);
 
     const status = document.createElement("span");
@@ -372,7 +401,7 @@ function renderBets() {
     card.append(odds);
 
     if (bet.status === "pending") {
-      const editable = canEdit(bet);
+      const editable = !bet.market_id && canEdit(bet);
       const cancellable = canCancel(bet);
       const actions = document.createElement("div");
       actions.className = "grid grid-cols-2 gap-2 px-3 pb-3";
@@ -711,7 +740,7 @@ function openSheet(game, selection, price, bet = null) {
     label: `${game.home_team} נגד ${game.away_team}`,
   };
   $("sheet-match").textContent = state.selected.label;
-  $("sheet-selection").textContent = `${SELECTION[selection]} · יחס ${bet ? "נעול" : "מוצג"} ${Number(price).toFixed(2)}`;
+  $("sheet-selection").textContent = `${SELECTION[selection] || selection} · יחס ${bet ? "נעול" : "מוצג"} ${Number(price).toFixed(2)}`;
   $("sheet-note").textContent = "";
   $("sheet-confirm").textContent = bet ? "עדכון הימור" : "אישור הימור";
   $("sheet-balance").classList.toggle("hidden", !bet);
@@ -720,6 +749,19 @@ function openSheet(game, selection, price, bet = null) {
   updatePayout();
   $("sheet-backdrop").classList.remove("hidden");
   $("sheet-backdrop").classList.add("flex");
+}
+
+function openMarketSheet(game, market, outcome) {
+  openSheet(game, outcome.selection, Number(outcome.price));
+  state.selected.marketId = Number(market.id);
+  state.selected.marketKey = market.market_key;
+  state.selected.marketSelection = outcome.selection;
+  state.selected.marketLabel = market.market_label;
+  state.selected.marketOutcomeLabel = outcome.label;
+  $("sheet-selection").textContent = `${market.market_label} · ${outcome.label} · יחס ${Number(outcome.price).toFixed(2)}`;
+  $("sheet-note").textContent = "היחס נבדק ונשמר בעת אישור ההימור";
+  $("sheet-picks").classList.add("hidden");
+  $("sheet-picks").classList.remove("grid");
 }
 
 function closeSheet() {
@@ -739,12 +781,21 @@ function updatePayout() {
 }
 
 async function refreshGames() {
-  const { data, error } = await supabase.from("games").select("*").order("match_time", { ascending: true }).limit(200);
-  if (error) {
-    toast(cleanError(error), "error");
+  const [gamesResult, marketsResult, settingsResult] = await Promise.all([
+    supabase.from("games").select("*").order("match_time", { ascending: true }).limit(200),
+    supabase.from("winner_markets").select("id,game_id,market_key,market_label,line,outcomes,active").eq("active", true),
+    supabase.rpc("get_market_display_settings")
+  ]);
+  if (gamesResult.error) {
+    toast(cleanError(gamesResult.error), "error");
     return;
   }
-  state.games = data || [];
+  state.games = gamesResult.data || [];
+  state.gameMarkets = marketsResult.error ? [] : (marketsResult.data || []);
+  state.marketSettings = settingsResult.error
+    ? { handicap_ft: true, total_goals_2_5: true, btts: true }
+    : { handicap_ft: true, total_goals_2_5: true, btts: true, ...(settingsResult.data || {}) };
+  if (state.expandedGameId && !state.games.some((game) => Number(game.id) === state.expandedGameId)) state.expandedGameId = null;
   renderGames();
 }
 
@@ -752,7 +803,7 @@ async function refreshBets() {
   if (!state.user) return;
   const { data, error } = await supabase
     .from("bets")
-    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
+    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, market_id, market_key, market_label, market_selection, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
     .limit(1000);
@@ -786,6 +837,50 @@ async function refreshAdmin() {
   root.replaceChildren();
   const title = document.createElement("h2"); title.className = "mb-3 text-xl font-extrabold text-gold"; title.textContent = "ניהול משתמשים"; root.append(title);
   const note = document.createElement("p"); note.className = "mb-4 text-xs text-mist"; note.textContent = "איפוס יתרה ל־1,000 ₪ אינו משנה הימורים פתוחים. מחיקת משתמש היא רכה ושומרת היסטוריית הימורים."; root.append(note);
+  const marketSettingsResult = await supabase.rpc("admin_get_market_settings");
+  if (!marketSettingsResult.error) {
+    const marketCard = document.createElement("section");
+    marketCard.className = "mb-5 rounded-2xl border border-gold/25 bg-panel p-4";
+    const marketTitle = document.createElement("h3");
+    marketTitle.className = "mb-1 text-lg font-extrabold text-gold";
+    marketTitle.textContent = "ניהול סוגי הימורים";
+    const marketNote = document.createElement("p");
+    marketNote.className = "mb-3 text-xs text-mist";
+    marketNote.textContent = "הפעל או הסתר סוגי הימורים לכל המשחקים. שוק שלא קיים במשחק לא יוצג.";
+    marketCard.append(marketTitle, marketNote);
+    (marketSettingsResult.data || []).forEach((setting) => {
+      const row = document.createElement("label");
+      row.className = "flex cursor-pointer items-center justify-between gap-3 border-t border-slate-700/50 py-3";
+      const label = document.createElement("span");
+      label.className = "text-sm font-semibold";
+      label.textContent = setting.label;
+      const toggle = document.createElement("input");
+      toggle.type = "checkbox";
+      toggle.checked = Boolean(setting.enabled);
+      toggle.className = "h-5 w-5 accent-amber-400";
+      toggle.addEventListener("change", async () => {
+        toggle.disabled = true;
+        const result = await supabase.rpc("admin_set_market_setting", { p_market_key: setting.key, p_enabled: toggle.checked });
+        toggle.disabled = false;
+        if (result.error) {
+          toggle.checked = !toggle.checked;
+          toast(cleanError(result.error), "error");
+          return;
+        }
+        state.marketSettings[setting.key] = toggle.checked;
+        toast(toggle.checked ? "סוג ההימור הופעל" : "סוג ההימור הוסתר");
+        renderGames();
+      });
+      row.append(label, toggle);
+      marketCard.append(row);
+    });
+    root.append(marketCard);
+  } else {
+    const warning = document.createElement("p");
+    warning.className = "mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200";
+    warning.textContent = "כדי לנהל סוגי הימורים יש להריץ את migration_dynamic_winner_markets.sql ב־Supabase.";
+    root.append(warning);
+  }
   (Array.isArray(data) ? data : []).forEach(user => {
     const card = document.createElement("article"); card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
     const head = document.createElement("div"); head.className = "mb-3 flex items-center justify-between gap-2";
@@ -1047,11 +1142,17 @@ async function placeBet() {
           p_selection: state.selected.selection,
           p_amount: rounded,
         })
-      : await supabase.rpc("place_bet", {
-          p_game_id: Number(state.selected.id),
-          p_selection: state.selected.selection,
-          p_amount: rounded,
-        });
+      : state.selected.marketId
+        ? await supabase.rpc("place_market_bet", {
+            p_market_id: Number(state.selected.marketId),
+            p_selection: state.selected.marketSelection,
+            p_amount: rounded,
+          })
+        : await supabase.rpc("place_bet", {
+            p_game_id: Number(state.selected.id),
+            p_selection: state.selected.selection,
+            p_amount: rounded,
+          });
     if (error) {
       toast(cleanError(error), "error");
       return;

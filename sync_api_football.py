@@ -48,6 +48,26 @@ def parse_api_result(item: dict) -> tuple[str, int | None, int | None] | None:
     return None
 
 
+def fixture_matches_existing_game(game: dict, item: dict, max_minutes: int = 180) -> bool:
+    """Match one provider fixture to an existing Nations League app row only."""
+    fixture = item.get("fixture") or {}
+    teams = item.get("teams") or {}
+    home = teams.get("home") or {}
+    away = teams.get("away") or {}
+    if not fixture.get("id") or not fixture.get("date") or not home.get("name") or not away.get("name"):
+        return False
+    if hebrew_name(str(home["name"]).strip()).casefold() != str(game.get("home_team") or "").strip().casefold():
+        return False
+    if hebrew_name(str(away["name"]).strip()).casefold() != str(game.get("away_team") or "").strip().casefold():
+        return False
+    try:
+        app_time = datetime.fromisoformat(str(game["match_time"]).replace("Z", "+00:00"))
+        provider_time = datetime.fromisoformat(str(fixture["date"]).replace("Z", "+00:00"))
+    except (KeyError, TypeError, ValueError):
+        return False
+    return abs((app_time - provider_time).total_seconds()) <= max_minutes * 60
+
+
 class Sync:
     def __init__(self):
         self.url = os.environ["SUPABASE_URL"].rstrip("/")
@@ -114,6 +134,96 @@ class Sync:
     @staticmethod
     def team_label(team: dict) -> str:
         return str(team.get("name") or "").strip()
+
+    def get_existing_nations_games(self) -> list[dict]:
+        params = {
+            "select": "id,home_team,away_team,match_time,round_name,status,result_confirmed,api_football_fixture_id",
+            "round_name": "ilike.*Nations League*",
+            "api_football_fixture_id": "is.null",
+            "status": "in.(upcoming,live)",
+            "result_confirmed": "eq.false",
+            "order": "match_time.asc",
+            "limit": "500",
+        }
+        r = requests.get(f"{self.url}/rest/v1/games", headers=self.db_headers, params=params, timeout=40)
+        r.raise_for_status()
+        return r.json()
+
+    def map_existing_nations(self):
+        # This one-off mode maps provider IDs onto existing Nations League rows.
+        # It never inserts games, changes odds, changes scores, or touches bets.
+        games = self.get_existing_nations_games()
+        if not games:
+            log.info("No unmapped existing Nations League games found.")
+            return
+        kickoffs = [datetime.fromisoformat(g["match_time"].replace("Z", "+00:00")) for g in games]
+        start = (min(kickoffs).date() - timedelta(days=1)).isoformat()
+        end = (max(kickoffs).date() + timedelta(days=1)).isoformat()
+        now = datetime.now(timezone.utc)
+        season = now.year if now.month >= 7 else now.year - 1
+        fixtures = self.api_get({
+            "league": 633, "season": season, "from": start, "to": end,
+            "timezone": "Asia/Jerusalem",
+        }, "map-existing-nations-only")
+
+        candidates = {}
+        reverse = {}
+        for game in games:
+            found = [item for item in fixtures if fixture_matches_existing_game(game, item)]
+            candidates[int(game["id"])] = found
+            for item in found:
+                fixture_id = int((item.get("fixture") or {}).get("id") or 0)
+                if fixture_id:
+                    reverse.setdefault(fixture_id, []).append(int(game["id"]))
+
+        mapped = 0
+        skipped = 0
+        for game in games:
+            game_id = int(game["id"])
+            found = candidates.get(game_id) or []
+            if len(found) != 1:
+                skipped += 1
+                log.warning("Skipping app game %s: expected one exact Nations League match, found %s", game_id, len(found))
+                continue
+            item = found[0]
+            info = item.get("fixture") or {}
+            fixture_id = int(info["id"])
+            if reverse.get(fixture_id) != [game_id]:
+                skipped += 1
+                log.warning("Skipping ambiguous API fixture %s for app game %s", fixture_id, game_id)
+                continue
+            teams = item.get("teams") or {}
+            home = teams.get("home") or {}
+            away = teams.get("away") or {}
+            params = {
+                "id": f"eq.{game_id}",
+                "api_football_fixture_id": "is.null",
+                "result_confirmed": "eq.false",
+                "status": "in.(upcoming,live)",
+            }
+            headers = {**self.db_headers, "Prefer": "return=representation"}
+            patch = {
+                "api_football_fixture_id": fixture_id,
+                "api_home_team_name": self.team_label(home),
+                "api_away_team_name": self.team_label(away),
+            }
+            response = requests.patch(
+                f"{self.url}/rest/v1/games", headers=headers, params=params, json=patch, timeout=40
+            )
+            if response.status_code >= 300:
+                raise RuntimeError(f"Could not map existing game {game_id}: HTTP {response.status_code}: {response.text[:300]}")
+            changed = response.json()
+            if len(changed) != 1:
+                skipped += 1
+                log.warning("App game %s changed before mapping; no row was updated", game_id)
+                continue
+            mapped += 1
+            log.info("Mapped existing Nations League game %s -> API fixture %s", game_id, fixture_id)
+
+        log.info(
+            "Existing Nations League mapping complete: %s mapped, %s skipped, %s app games inspected; %s API requests",
+            mapped, skipped, len(games), self.calls,
+        )
 
     def sync_fixtures(self):
         now = datetime.now(timezone.utc)
@@ -208,12 +318,14 @@ class Sync:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("fixtures", "results"))
+    parser.add_argument("mode", choices=("fixtures", "results", "map-existing-nations"))
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     job = Sync()
     if args.mode == "fixtures":
         job.sync_fixtures()
+    elif args.mode == "map-existing-nations":
+        job.map_existing_nations()
     else:
         job.sync_results()
 

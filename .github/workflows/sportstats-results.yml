@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   # Poll every 20 minutes; active leagues are selected dynamically by the script.
   schedule:
-    - cron: "*/20 * * * *"
+    - cron: "7,27,47 * * * *"
 
 permissions:
   contents: read

@@ -1,6 +1,8 @@
 -- API-Football split sync: preserve internal game IDs and existing bets.
 alter table public.games
-  add column if not exists api_football_fixture_id bigint,\n  add column if not exists api_home_team_name text,\n  add column if not exists api_away_team_name text;
+  add column if not exists api_football_fixture_id bigint,
+  add column if not exists api_home_team_name text,
+  add column if not exists api_away_team_name text;
 
 create unique index if not exists games_api_football_fixture_id_uidx
   on public.games(api_football_fixture_id)
@@ -49,6 +51,8 @@ begin
     if found then
       update public.games
       set api_football_fixture_id = p_api_fixture_id,
+          api_home_team_name = p_api_home_name,
+          api_away_team_name = p_api_away_name,
           home_team = p_home_team,
           away_team = p_away_team,
           home_flag = coalesce(p_home_flag, home_flag),
@@ -59,17 +63,20 @@ begin
       returning * into v_game;
     else
       insert into public.games (
-        api_football_fixture_id, home_team, away_team, home_flag, away_flag,
+        api_football_fixture_id, api_home_team_name, api_away_team_name, home_team, away_team, home_flag, away_flag,
         match_time, round_name, status, home_score, away_score, result_confirmed
       ) values (
-        p_api_fixture_id, p_home_team, p_away_team, p_home_flag, p_away_flag,
+        p_api_fixture_id, p_api_home_name, p_api_away_name, p_home_team, p_away_team, p_home_flag, p_away_flag,
         p_match_time, p_round_name, 'upcoming', 0, 0, false
       ) returning * into v_game;
       v_created := true;
     end if;
   else
+    if not coalesce(v_game.result_confirmed,false) then
     update public.games
-    set home_team = p_home_team,
+    set api_home_team_name = p_api_home_name,
+        api_away_team_name = p_api_away_name,
+        home_team = p_home_team,
         away_team = p_away_team,
         home_flag = coalesce(p_home_flag, home_flag),
         away_flag = coalesce(p_away_flag, away_flag),
@@ -78,6 +85,7 @@ begin
     where id = v_game.id
       and coalesce(result_confirmed, false) = false
     returning * into v_game;
+    end if;
   end if;
 
   return jsonb_build_object('game_id', v_game.id, 'api_fixture_id', p_api_fixture_id,

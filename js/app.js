@@ -252,7 +252,7 @@ function renderBets() {
         const row = document.createElement("p");
         row.className = "mt-1 text-sm text-slate-300";
         const match = leg.games || {};
-        const legStatus = bet.status === "pending" || bet.status === "won" || bet.status === "lost" ? ` · ${BET_STATUS[leg.status] || ""}` : "";
+        const legStatus = leg.status ? ` · ${BET_STATUS[leg.status] || leg.status}` : "";
         row.textContent = `${match.home_team || "משחק"} נגד ${match.away_team || ""} · ${SELECTION[leg.bet_selection] || leg.bet_selection} · ${Number(leg.odds).toFixed(2)}${legStatus}`;
         card.append(row);
       });

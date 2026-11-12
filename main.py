@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import os
-import sys
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -20,7 +19,6 @@ import requests
 
 log = logging.getLogger("nations-sync")
 
-API_BASE = "https://v3.football.api-sports.io"
 RAPIDAPI_HOST = "free-api-live-football-data.p.rapidapi.com"
 LEAGUES = (
     (283, "israel"),
@@ -43,7 +41,7 @@ def include_fixture(code: str, home: str, away: str) -> bool:
     allowed = SPANISH_FOCUS if code == "spain" else ENGLISH_FOCUS
     return any(name == club or club in name for name in names for club in allowed)
 
-PLACEHOLDERS = {"", "YOUR_SPORTS_API_KEY_HERE"}
+PLACEHOLDERS = {"", "YOUR_RAPIDAPI_KEY_HERE", "YOUR_SPORTS_API_KEY_HERE"}
 REGULAR_TIME_DONE = {"FT", "AET", "PEN", "ET", "BT", "P"}
 LIVE = {"1H", "HT", "2H", "LIVE", "INT", "SUSP"}
 CANCELLED = {"CANC", "ABD", "AWD", "WO"}
@@ -214,9 +212,7 @@ class Database:
 
 
 def sports_connection(api_key: str) -> tuple[str, dict[str, str]]:
-    provider = os.environ.get("SPORTS_API_PROVIDER", "rapidapi").strip().lower()
-    if provider == "apisports":
-        return API_BASE, {"x-apisports-key": api_key}
+    """The only supported football data provider: Smart API via RapidAPI."""
     return f"https://{RAPIDAPI_HOST}", {
         "x-rapidapi-key": api_key,
         "x-rapidapi-host": RAPIDAPI_HOST,
@@ -292,19 +288,6 @@ class FootballClient:
             except RuntimeError:
                 log.warning("The sports response was received, but the request log could not be written.")
 
-    def get_pages(self, path: str, params: dict, purpose: str, limit: int = 4) -> list[dict] | None:
-        rows: list[dict] = []
-        page = 1
-        while page <= limit:
-            body = self.get(path, {**params, "page": page}, purpose)
-            if body is None:
-                return None
-            rows.extend(body.get("response") or [])
-            total = ((body.get("paging") or {}).get("total")) or 1
-            if page >= total:
-                break
-            page += 1
-        return rows
 
 
 def map_status(short: str, score: dict, goals: dict) -> tuple[str, int, int] | None:
@@ -499,35 +482,6 @@ def rapid_row(code: str, round_name: str, match: dict, now: datetime) -> dict | 
     return payload_from_match(round_name, match, confirm=confirm, odds=None)
 
 
-def api_row(code: str, fixture: dict, now: datetime) -> dict | None:
-    info = fixture.get("fixture") or {}
-    kickoff = info.get("date")
-    if not kickoff or not in_board_window(kickoff, now):
-        return None
-    league = fixture.get("league") or {}
-    teams = fixture.get("teams") or {}
-    if not include_fixture(code, (teams.get("home") or {}).get("name"), (teams.get("away") or {}).get("name")):
-        return None
-    round_name = tag_round(code, league.get("round") or league.get("name"))
-    if "women" in round_name.lower():
-        return None
-    # Never import odds from the external sports API; Winner is the sole odds source.
-    built = build_payload(fixture, None, lock_odds=False, confirm=False)
-    if not built:
-        return None
-    built["p_round_name"] = round_name
-    mapped = map_status((info.get("status") or {}).get("short") or "NS", fixture.get("score") or {}, fixture.get("goals") or {})
-    if mapped is None:
-        return None
-    state, _, _ = mapped
-    if state == "live":
-        return built
-    if should_confirm("finished" if state == "finished" else "cancelled" if state == "cancelled" else "upcoming", kickoff, now):
-        confirmed = build_payload(fixture, None, lock_odds=False, confirm=True)
-        if confirmed:
-            confirmed["p_round_name"] = round_name
-            return confirmed
-    return built
 
 
 def rows_from_payload(payload: dict | None, code: str, now: datetime) -> list[dict]:
@@ -646,5 +600,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    log.error("This legacy combined sync is disabled. Use sync_api_football.py fixtures or results.")
-    sys.exit(2)
+    raise SystemExit(main())

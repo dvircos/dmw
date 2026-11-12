@@ -129,10 +129,10 @@ function renderGames() {
       return `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query);
     })
     .sort((a, b) => {
-      const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
-      if (byStatus) return byStatus;
       const byPriority = Number(isPriorityMatch(b)) - Number(isPriorityMatch(a));
       if (byPriority) return byPriority;
+      const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+      if (byStatus) return byStatus;
       return new Date(a.match_time) - new Date(b.match_time);
     });
   if (!games.length) {

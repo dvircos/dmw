@@ -1,0 +1,33 @@
+name: SportStatsAPI result sync
+
+on:
+  # UTC hours 18-22 are the union needed to cover Israel 21:00-00:00
+  # in both standard time and daylight time. The script filters locally,
+  # so exactly four runs per day call the provider.
+  schedule:
+    - cron: "0 18-22 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sportstats-results
+  cancel-in-progress: false
+
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Sync confirmed full-time results
+        env:
+          SPORTSTATS_API_KEY: ${{ secrets.SPORTSTATS_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_EVENT_NAME: schedule
+        run: python sync_sportstats.py results

@@ -94,10 +94,10 @@ class Sync:
         return r.json() if r.content else None
 
     def get_active_games(self, now: datetime) -> list[dict]:
-        # Only games already in the app, started or due to start within 30 minutes,
-        # not yet settled, and mapped to an API-Football fixture ID.
+        # Only games already in the app whose kickoff has passed, not yet settled,
+        # and mapped to an API-Football fixture ID. Future fixtures are never polled here.
         lower = (now - timedelta(days=2)).isoformat()
-        upper = (now + timedelta(minutes=30)).isoformat()
+        upper = now.isoformat()
         params = {
             "select": "id,api_football_fixture_id,status,match_time",
             "api_football_fixture_id": "not.is.null",

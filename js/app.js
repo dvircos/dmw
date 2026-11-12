@@ -281,6 +281,7 @@ function renderGames() {
         button.type = "button";
         button.disabled = !open || !Number.isFinite(Number(price)) || Number(price) < 1.01;
         const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && !leg.marketId && leg.selection === selection);
+        button.setAttribute("aria-pressed", picked ? "true" : "false");
         button.className = "rounded-xl border px-2 py-2.5 text-center transition active:scale-[.98] disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-ink/35");
         const l = document.createElement("span"); l.className="block text-[11px] text-slate-400"; l.textContent=label;
         const v = document.createElement("strong"); v.className="mt-1 block text-lg font-extrabold text-mint"; v.dir="ltr"; v.textContent=Number(price)>=1.01?Number(price).toFixed(2):"—";
@@ -333,6 +334,7 @@ function renderGames() {
           button.type = "button";
           button.disabled = !open || !Number.isFinite(price) || price < 1.01;
           const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && Number(leg.marketId) === Number(market.id) && leg.marketSelection === outcome.selection);
+          button.setAttribute("aria-pressed", picked ? "true" : "false");
           button.className = "rounded-xl border px-2 py-3 text-center transition active:scale-[.98] disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-ink/50");
           const label = document.createElement("span"); label.className="block text-xs text-slate-300"; label.textContent=outcome.label || outcome.selection;
           const value = document.createElement("strong"); value.className="mt-1 block text-lg text-mint"; value.dir="ltr"; value.textContent=Number.isFinite(price)?price.toFixed(2):"—";
@@ -441,7 +443,10 @@ function renderBets() {
   });
 
   if (!visible.length) {
-    empty(root, historyBets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים");
+    const placeholder = document.createElement("p");
+    placeholder.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-10 text-center text-sm text-mist";
+    placeholder.textContent = historyBets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים";
+    root.append(placeholder);
     return;
   }
 
@@ -653,7 +658,10 @@ function renderBoard() {
   root.append(activeTitle);
 
   if (!state.board.length) {
-    empty(root, "עדיין אין שחקנים בקבוצה הזו");
+    const placeholder = document.createElement("p");
+    placeholder.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-8 text-center text-sm text-mist";
+    placeholder.textContent = "עדיין אין שחקנים בקבוצה הזו";
+    root.append(placeholder);
     return;
   }
   const podium = state.board.length >= 3 ? document.createElement("div") : null;

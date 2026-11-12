@@ -194,18 +194,6 @@ def flag_url(name: str, logo: str | None) -> str:
     return "https://flagcdn.com/w80/un.png"
 
 
-def clamp_odd(value) -> str | None:
-    if value in (None, ""):
-        return None
-    try:
-        number = round(float(value), 2)
-    except (TypeError, ValueError):
-        return None
-    if number < 1.01 or number > 99.99:
-        return None
-    return f"{number:.2f}"
-
-
 class Database:
     def __init__(self, url: str, service_key: str):
         self.url = url.rstrip("/")
@@ -317,65 +305,6 @@ class FootballClient:
                 break
             page += 1
         return rows
-
-
-def extract_1x2(payload: dict | None) -> dict[str, str | None] | None:
-    """Extract only the full-time 1X2 market from the observed Smart API shapes."""
-    root = ((payload or {}).get("response") or {}).get("odds") or {}
-    inner = root.get("odds") if isinstance(root, dict) else None
-    if not isinstance(inner, dict):
-        return None
-
-    markets: list[dict] = []
-    markets.extend(item for item in inner.get("matchfactMarkets") or [] if isinstance(item, dict))
-    for tab in inner.get("oddsTabMarkets") or []:
-        if isinstance(tab, dict):
-            markets.extend(item for item in tab.get("markets") or [] if isinstance(item, dict))
-
-    for market in markets:
-        header = str(market.get("header") or "").strip().lower()
-        # Smart API has returned the market identifier in more than one field.
-        translation = str(
-            market.get("headerTranslationKey")
-            or (market.get("fotMobMarketTypeId") or {}).get("translationKey")
-            or ""
-        ).strip().lower()
-        if header != "full time result" and translation != "who_will_win":
-            continue
-
-        odds: dict[str, str | None] = {"1": None, "X": None, "2": None}
-        for selection in market.get("selections") or []:
-            if not isinstance(selection, dict):
-                continue
-            label = str(selection.get("name") or "").strip().lower()
-            price = clamp_odd(selection.get("oddsDecimal"))
-            if label == "1":
-                odds["1"] = price
-            elif label in {"x", "draw"}:
-                odds["X"] = price
-            elif label == "2":
-                odds["2"] = price
-        if all(odds.values()):
-            return odds
-
-    # Older Smart API responses sometimes expose only the resolved market.
-    resolved = inner.get("resolvedOddsMarket")
-    if isinstance(resolved, dict):
-        odds = {"1": None, "X": None, "2": None}
-        for selection in resolved.get("selections") or []:
-            if not isinstance(selection, dict):
-                continue
-            label = str(selection.get("name") or "").strip().lower()
-            price = clamp_odd(selection.get("oddsDecimal"))
-            if label == "1":
-                odds["1"] = price
-            elif label in {"x", "draw"}:
-                odds["X"] = price
-            elif label == "2":
-                odds["2"] = price
-        if all(odds.values()):
-            return odds
-    return None
 
 
 def map_status(short: str, score: dict, goals: dict) -> tuple[str, int, int] | None:

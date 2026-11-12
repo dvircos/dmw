@@ -200,7 +200,10 @@ function renderGames() {
   const source = isArchive ? state.archiveGames : state.games;
   const games = source
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
-    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query));
+    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query))
+    .sort((a, b) => isArchive
+      ? new Date(b.match_time) - new Date(a.match_time)
+      : (a.status === "live" ? 0 : 1) - (b.status === "live" ? 0 : 1) || new Date(a.match_time) - new Date(b.match_time));
   root.replaceChildren();
   if (isArchive) {
     const heading = document.createElement("div");

@@ -141,3 +141,65 @@ revoke all on function public.upsert_sportstats_fixture(text,text,text,text,text
   from public, anon, authenticated;
 grant execute on function public.upsert_sportstats_fixture(text,text,text,text,text,text,text,text,text,text,text,timestamptz,text)
   to service_role;
+
+
+-- Live-score state is separate from final result confirmation and settlement.
+alter table public.games
+  add column if not exists live_minute integer,
+  add column if not exists live_status_text text;
+
+create or replace function public.sync_sportstats_live_score(
+  p_match_code text,
+  p_home_score integer,
+  p_away_score integer,
+  p_live_minute integer,
+  p_live_status_text text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_game public.games%rowtype;
+begin
+  if coalesce(trim(p_match_code),'') = ''
+     or p_home_score is null or p_away_score is null
+     or p_home_score < 0 or p_away_score < 0
+     or (p_live_minute is not null and (p_live_minute < 0 or p_live_minute > 200))
+     or coalesce(trim(p_live_status_text),'') = '' then
+    raise exception 'Invalid SportStatsAPI live score payload';
+  end if;
+
+  select * into v_game
+  from public.games
+  where sportstats_match_code = p_match_code
+  for update;
+
+  if not found then
+    return jsonb_build_object('matched',false,'match_code',p_match_code);
+  end if;
+
+  if coalesce(v_game.result_confirmed,false)
+     or v_game.status in ('finished','cancelled') then
+    return jsonb_build_object('matched',true,'ignored',true,'game_id',v_game.id,'settled',0);
+  end if;
+
+  update public.games
+  set home_score = p_home_score,
+      away_score = p_away_score,
+      status = 'live',
+      live_minute = p_live_minute,
+      live_status_text = upper(trim(p_live_status_text))
+  where id = v_game.id
+  returning * into v_game;
+
+  return jsonb_build_object('matched',true,'game_id',v_game.id,
+    'status',v_game.status,'home_score',v_game.home_score,'away_score',v_game.away_score,
+    'live_minute',v_game.live_minute,'live_status_text',v_game.live_status_text,'settled',0);
+end;
+$$;
+
+revoke all on function public.sync_sportstats_live_score(text,integer,integer,integer,text)
+  from public, anon, authenticated;
+grant execute on function public.sync_sportstats_live_score(text,integer,integer,integer,text)
+  to service_role;

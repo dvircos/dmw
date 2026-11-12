@@ -50,7 +50,7 @@ begin
       when item->>'mop'='50002' and coalesce(item->>'mp','') ilike '%מעל/מתחת שערים%'
         and coalesce(item->>'mp','') not ilike '%מחצית ראשונה%' then 'total_goals_2_5'
       when item->>'mop'='400002' then 'btts'
-      else 'winner_'||item->>'mop'||case when coalesce(item->>'mp','') ilike '%מחצית ראשונה%' then '_first_half' else '' end
+      else 'winner_'||(item->>'mop')||case when coalesce(item->>'mp','') ilike '%מחצית ראשונה%' then '_first_half' else '' end
     end;
 
     v_desc:=nullif(trim(item->>'desc'),'');
@@ -73,7 +73,7 @@ begin
     order by abs(extract(epoch from (g.match_time-v_kickoff))) limit 1;
     if v_game_id is null then continue; end if;
     v_matched:=v_matched+1;
-    v_market_label:=coalesce(nullif(trim(item->>'mp'),''),'שוק Winner '||item->>'mop');
+    v_market_label:=coalesce(nullif(trim(item->>'mp'),''),'שוק Winner '||(item->>'mop'));
     v_home_desc:=null;
     v_line:=null;
 

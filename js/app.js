@@ -649,6 +649,11 @@ function subscribe() {
       betTimer = setTimeout(refreshBets, 250);
     })
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${state.user.id}` }, (payload) => {
+      if (payload.new?.is_deleted) {
+        toast("החשבון אינו פעיל", "error");
+        void supabase.auth.signOut();
+        return;
+      }
       if (payload.new && payload.new.balance != null) setBalance(payload.new.balance);
     })
     .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {

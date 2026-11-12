@@ -560,7 +560,8 @@ function renderBets() {
     const resultLabel = document.createElement("span");
     resultLabel.className = "block text-[11px] text-slate-400";
     const resultValue = document.createElement("strong");
-    resultValue.className = "mt-0.5 inline-block rounded-xl px-2.5 py-1 text-base font-extrabold tabular-nums";
+    resultValue.className = "mt-1 inline-flex max-w-full items-center justify-center whitespace-nowrap rounded-lg px-2 py-1 text-sm font-bold leading-tight tabular-nums";
+    resultValue.dir = "ltr";
     const stakeAmount = Number(bet.bet_amount) || 0;
     const payoutAmount = Number(bet.potential_payout) || 0;
     if (bet.status === "won") {

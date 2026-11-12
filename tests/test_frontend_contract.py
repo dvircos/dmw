@@ -39,9 +39,11 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('if (isNavigation)', sw)
         self.assertNotIn('hit || caches.match("./index.html")', sw)
 
-    def test_result_sync_is_scheduled_every_20_minutes(self):
+    def test_result_sync_uses_supabase_cron_dispatch_not_github_schedule(self):
         workflow = (ROOT / ".github" / "workflows" / "sportstats-results.yml").read_text(encoding="utf-8")
-        self.assertIn('cron: "*/20 * * * *"', workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertIn("push:", workflow)
+        self.assertNotIn("cron:", workflow)
 
     def test_result_sync_polls_started_unconfirmed_games_across_midnight(self):
         sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
@@ -55,6 +57,25 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn("end = israel_today.isoformat()", sync)
         self.assertIn("rows = self.fetch_league(league_code, start, end)", sync)
 
+
+    def test_rtl_score_display_matches_the_visual_home_away_order(self):
+        app = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        # In RTL grid layout, the first DOM column (home) is on the right.
+        # The visible left-to-right score must therefore be away-home.
+        self.assertIn("teams.append(home, score, away)", app)
+        self.assertIn("${game.away_score} - ${game.home_score}", app)
+        self.assertIn('[["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]]', app)
+        self.assertIn('if (selection === "1") return Number(game.home_odds);', app)
+        self.assertIn('return Number(game.away_odds);', app)
+
+    def test_result_settlement_uses_provider_home_away_order_consistently(self):
+        sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
+        migration = (ROOT / "migration_sportstats_results.sql").read_text(encoding="utf-8")
+        self.assertIn("return hs, aws", sync)
+        self.assertIn('"p_home_score": score[0]', sync)
+        self.assertIn('"p_away_score": score[1]', sync)
+        self.assertIn("p_home_score > v_game.away_score", migration)
+        self.assertIn("p_home_score < v_game.away_score", migration)
 
     def test_winner_odds_import_is_admin_guarded(self):
         migration = (ROOT / "migration_security_and_performance.sql").read_text(encoding="utf-8")

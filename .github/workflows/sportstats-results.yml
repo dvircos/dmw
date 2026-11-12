@@ -2,7 +2,7 @@ name: SportStatsAPI result sync
 
 on:
   # Check every 30 minutes. The script calls SportStatsAPI only for leagues
-  # with an unconfirmed fixture today whose scheduled kickoff was within 2 hours.
+  # with an unconfirmed fixture today in one of the five post-kickoff half-hour windows.
   schedule:
     - cron: "*/30 * * * *"
 

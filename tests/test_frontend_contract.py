@@ -43,14 +43,16 @@ class FrontendContractTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "sportstats-results.yml").read_text(encoding="utf-8")
         self.assertIn('cron: "*/30 * * * *"', workflow)
 
-    def test_result_sync_only_checks_todays_games_within_two_hours_after_kickoff(self):
+    def test_result_sync_only_checks_five_half_hour_windows_after_todays_kickoff(self):
         sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
         self.assertIn('local_date = now.astimezone(israel).date()', sync)
         self.assertIn('day_start = datetime.combine(local_date, time.min, tzinfo=israel)', sync)
         self.assertIn('day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel)', sync)
-        self.assertIn('active_window_start = max(day_start, now - timedelta(hours=2))', sync)
-        self.assertIn('"match_time": f"gte.{active_window_start.isoformat()}"', sync)
-        self.assertIn('"and": f"(match_time.lt.{min(day_end, now).isoformat()})"', sync)
+        self.assertIn('active_window_start = max(day_start, now - timedelta(hours=3))', sync)
+        self.assertIn('active_window_end = min(day_end, now - timedelta(minutes=30))', sync)
+        self.assertIn('"match_time": f"gt.{active_window_start.isoformat()}"', sync)
+        self.assertIn('"and": f"(match_time.lte.{active_window_end.isoformat()})"', sync)
+        self.assertIn('Five scheduled checks: kickoff+30m, +60m, +90m, +120m, +150m.', sync)
         self.assertIn('israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date().isoformat()', sync)
         self.assertIn("league_codes = sorted({str(g[\"sportstats_league_code\"]) for g in games", sync)
 

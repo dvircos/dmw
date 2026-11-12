@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from main import Database, FootballClient, load_league
+from main import Database, FootballClient, LEAGUES, ISRAEL_TZ, load_league
 
 log = logging.getLogger("existing-nations-sync")
 
@@ -61,7 +61,6 @@ def result_payload(game: dict, row: dict) -> dict | None:
 def get_existing_games(url: str, headers: dict) -> list[dict]:
     params = {
         "select": "id,fixture_id,home_team,away_team,home_flag,away_flag,match_time,round_name,status,result_confirmed",
-        "round_name": "ilike.*Nations League*",
         "fixture_id": "not.is.null",
         "status": "in.(upcoming,live)",
         "result_confirmed": "eq.false",
@@ -75,6 +74,11 @@ def get_existing_games(url: str, headers: dict) -> list[dict]:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+        local_hour = datetime.now(timezone.utc).astimezone(ISRAEL_TZ).hour
+        if local_hour not in {0, 20, 21, 22, 23}:
+            log.info("Outside Israel 20:00-00:00 window; skipping provider calls.")
+            return 0
     url = os.environ["SUPABASE_URL"].strip()
     service_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"].strip()
     api_key = os.environ["API_KEY"].strip()
@@ -92,35 +96,46 @@ def main() -> int:
         log.info("No unsettled existing Nations League games found.")
         return 0
 
+    def belongs(code: str, round_name: str) -> bool:
+        name = str(round_name or "")
+        return {
+            "england": name == "הליגה האנגלית",
+            "spain": name == "הליגה הספרדית",
+            "ucl": name == "ליגת האלופות",
+            "nations": name.startswith("ליגת האומות"),
+            "israel": name == "ליגת העל",
+        }.get(code, False)
+
+    eligible_games = [g for g in games if any(belongs(code, g.get("round_name")) for _, code in LEAGUES)]
+    if not eligible_games:
+        log.info("No existing games belong to a configured results league.")
+        return 0
+
     client = FootballClient(api_key, db)
     now = datetime.now(timezone.utc)
-    rows = load_league(client, db, 5, "nations", now)
-    if client.stopped:
-        error = client.last_error or {"message": "provider stopped the request"}
-        try:
-            db.rpc("log_api_request", {
-                "p_endpoint": "/football-get-all-matches-by-league/sync-aborted",
-                "p_params": {"provider_error": error},
-                "p_status": int(error.get("http_status") or 503) if isinstance(error, dict) else 503,
-                "p_purpose": "existing-nations-only",
-            })
-        except RuntimeError:
-            pass
-        raise RuntimeError(f"RapidAPI could not provide Nations League data: {error}")
-    if not rows:
-        raise RuntimeError("RapidAPI returned no Nations League fixtures; refusing to report a successful sync.")
-
     by_fixture: dict[int, list[dict]] = {}
-    for row in rows:
-        try:
-            by_fixture.setdefault(int(row["p_fixture_id"]), []).append(row)
-        except (KeyError, TypeError, ValueError):
+    fetched_leagues = []
+    for league_id, code in LEAGUES:
+        league_games = [g for g in eligible_games if belongs(code, g.get("round_name"))]
+        if not league_games:
             continue
+        rows = load_league(client, db, league_id, code, now)
+        if client.stopped:
+            error = client.last_error or {"message": "provider stopped the request"}
+            raise RuntimeError(f"Sports API could not provide {code} data: {error}")
+        if not rows:
+            raise RuntimeError(f"Sports API returned no {code} fixtures; refusing to report a successful sync.")
+        fetched_leagues.append(code)
+        for row in rows:
+            try:
+                by_fixture.setdefault(int(row["p_fixture_id"]), []).append(row)
+            except (KeyError, TypeError, ValueError):
+                continue
 
     matched = 0
     settled = 0
     unmatched_ids = []
-    for game in games:
+    for game in eligible_games:
         candidates = by_fixture.get(int(game["fixture_id"]), [])
         valid = [row for row in candidates if matches_existing_game(game, row)]
         if len(valid) != 1:
@@ -142,22 +157,22 @@ def main() -> int:
         db.rpc("log_api_request", {
             "p_endpoint": "/football-get-all-matches-by-league/verify-existing",
             "p_params": {
-                "league_id": 5,
-                "app_games": len(games),
+                "leagues_fetched": fetched_leagues,
+                "app_games": len(eligible_games),
                 "provider_rows": len(rows),
                 "matched_existing_games": matched,
                 "unmatched_game_ids": unmatched_ids,
                 "settled_results": settled,
             },
             "p_status": 200,
-            "p_purpose": "existing-nations-only",
+            "p_purpose": "existing-multileague-results",
         })
     except RuntimeError:
         log.warning("Could not persist the mapping summary to the API request log.")
 
     log.info(
-        "Existing Nations League sync complete: %s matched, %s unmatched, %s results settled; no games created.",
-        matched, len(unmatched_ids), settled,
+        "Existing multi-league sync complete (%s): %s matched, %s unmatched, %s results settled; no games created.",
+        ",".join(fetched_leagues), matched, len(unmatched_ids), settled,
     )
     return 0
 

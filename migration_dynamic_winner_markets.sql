@@ -1,5 +1,8 @@
--- Dynamic Winner markets for all leagues. Run once in Supabase SQL Editor.
+-- Dynamic Winner markets for all football leagues. Run once in Supabase SQL Editor.
 -- Existing 1X2 bets and settlement remain unchanged.
+
+alter table public.games add column if not exists sportstats_api_home_name text;
+alter table public.games add column if not exists sportstats_api_away_name text;
 
 create table if not exists public.winner_markets (
   id bigserial primary key,

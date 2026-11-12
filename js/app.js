@@ -105,6 +105,8 @@ function showTab(tab) {
 function paintLeagueTabs() {
   document.querySelectorAll(".league-tab").forEach((button) => {
     const active = button.dataset.league === state.league;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
     button.classList.toggle("bg-gold", active);
     button.classList.toggle("font-bold", active);
     button.classList.toggle("text-ink", active);
@@ -950,6 +952,7 @@ document.querySelectorAll(".nav-btn").forEach((button) => button.addEventListene
 document.querySelectorAll(".league-tab").forEach((button) => button.addEventListener("click", () => {
   state.league = button.dataset.league;
   paintLeagueTabs();
+  button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   renderGames();
 }));
 $("team-search").addEventListener("input", () => {
@@ -970,6 +973,7 @@ $("slip-toggle").addEventListener("click", () => {
   renderSlip();
 });
 $("slip-drawer").addEventListener("click", (event) => event.stopPropagation());
+$("slip-close").addEventListener("click", () => { state.slipOpen = false; renderSlip(); });
 $("slip-backdrop").addEventListener("click", () => {
   state.slipOpen = false;
   renderSlip();

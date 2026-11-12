@@ -33,3 +33,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           API_KEY: ${{ secrets.API_KEY }}
         run: python sync_api_football.py map-existing-nations
+
+# Retry after adding provider-response diagnostics.

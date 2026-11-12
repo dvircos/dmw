@@ -117,7 +117,7 @@ declare
   v_voids integer;
   v_settled integer := 0;
 begin
-  if p_status not in ('finished','cancelled') then
+  if p_status is null or p_status not in ('finished','cancelled') then
     raise exception 'Only final results can be settled';
   end if;
   if p_status = 'finished' and (p_home_score is null or p_away_score is null

@@ -261,12 +261,15 @@ function renderBets() {
   toolbar.append(tabs);
   root.append(toolbar);
 
+  // Cancelled selections are not real betting history: their stake was returned.
+  // Keep only placed bets (pending) and bets that were actually settled (won/lost).
+  const historyBets = state.bets.filter((bet) => ["pending", "won", "lost"].includes(bet.status));
   const isPending = (bet) => bet.status === "pending";
-  const visible = state.bets.filter((bet) => state.betsFilter === "all"
+  const visible = historyBets.filter((bet) => state.betsFilter === "all"
     || (state.betsFilter === "pending" ? isPending(bet) : !isPending(bet)));
   const counts = {
-    pending: state.bets.filter(isPending).length,
-    settled: state.bets.filter((bet) => !isPending(bet)).length,
+    pending: historyBets.filter(isPending).length,
+    settled: historyBets.filter((bet) => bet.status === "won" || bet.status === "lost").length,
   };
   tabs.querySelectorAll("button").forEach((button, index) => {
     const key = filters[index][0];
@@ -275,7 +278,7 @@ function renderBets() {
   });
 
   if (!visible.length) {
-    empty(root, state.bets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים");
+    empty(root, historyBets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים");
     return;
   }
 

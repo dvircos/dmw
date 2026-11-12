@@ -24,10 +24,9 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
-      - name: Sync results for all existing games with verified API-Football IDs
+      - name: Sync fixtures and results from Smart API via RapidAPI
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           API_KEY: ${{ secrets.API_KEY }}
-          SPORTS_API_PROVIDER: rapidapi
-        run: python sync_api_football.py results
+        run: python main.py

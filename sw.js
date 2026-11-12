@@ -1,4 +1,4 @@
-const CACHE = "dmw-v15";
+const CACHE = "dmw-v16";
 const ASSETS = [
   "./",
   "./index.html",

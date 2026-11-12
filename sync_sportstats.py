@@ -8,7 +8,9 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any
 
 import requests
@@ -237,16 +239,103 @@ class SportStatsSync:
         log.info("Fixture import complete: %s fixtures, %s provider requests", imported, self.api_calls)
         return imported
 
+    def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
+        params = {
+            "select": "id,sportstats_match_code,sportstats_league_code,match_time",
+            "sportstats_match_code": "not.is.null",
+            "sportstats_league_code": "not.is.null",
+            "result_confirmed": "eq.false",
+            "match_time": f"lt.{now.isoformat()}",
+            "status": "in.(upcoming,live)",
+            "order": "match_time.asc",
+            "limit": "500",
+        }
+        response = requests.get(
+            f"{self.supabase_url}/rest/v1/games",
+            headers=self.db_headers, params=params, timeout=35,
+        )
+        if response.status_code >= 300:
+            raise RuntimeError(f"Could not load pending SportStatsAPI games: HTTP {response.status_code}: {response.text[:300]}")
+        rows = response.json()
+        if not isinstance(rows, list):
+            raise RuntimeError("Unexpected Supabase games response")
+        return rows
+
+    @staticmethod
+    def final_score(row: dict[str, Any]) -> tuple[int, int] | None:
+        # Only FT is accepted: AET/PEN are intentionally excluded because
+        # settlement must use the regular-time score, not extra time/shootouts.
+        if str(row.get("status") or "").upper() != "FT":
+            return None
+        if str(row.get("status_code") or "").lower() != "final":
+            return None
+        home = row.get("home_team") or {}
+        away = row.get("away_team") or {}
+        hs, aws = home.get("score"), away.get("score")
+        if isinstance(hs, int) and isinstance(aws, int) and hs >= 0 and aws >= 0:
+            return hs, aws
+        # Fallback only to the provider's explicit full-time score string.
+        score = str(row.get("full_time_score") or "")
+        match = re.fullmatch(r"\\s*\\[\\s*(\\d+)\\s*[-:]\\s*(\\d+)\\s*\\]\\s*", score)
+        if match:
+            return int(match.group(1)), int(match.group(2))
+        return None
+
+    def sync_results(self) -> int:
+        now = datetime.now(timezone.utc)
+        games = self.fetch_unconfirmed_games(now)
+        if not games:
+            log.info("No past, unconfirmed SportStatsAPI-linked games; 0 provider requests.")
+            return 0
+
+        league_codes = sorted({str(g["sportstats_league_code"]) for g in games if g.get("sportstats_league_code")})
+        league_lookup = {code: (label, name) for code, label, name in LEAGUES}
+        known_codes = [code for code in league_codes if code in league_lookup]
+        if not known_codes:
+            log.info("No supported SportStatsAPI leagues among pending games; 0 provider requests.")
+            return 0
+
+        start = (now - timedelta(days=7)).date().isoformat()
+        end = now.date().isoformat()
+        by_code = {str(g["sportstats_match_code"]): g for g in games}
+        confirmed = 0
+
+        for league_code in known_codes:
+            # Reserve quota before the provider request; never retry or paginate.
+            allowed = self.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
+            if allowed is not True:
+                log.warning("Daily provider quota reached; stopping before another SportStatsAPI request.")
+                break
+            rows = self.fetch_league(league_code, start, end)
+            for row in rows:
+                match_code = str(row.get("code") or "").strip()
+                if match_code not in by_code:
+                    continue
+                score = self.final_score(row)
+                if score is None:
+                    continue
+                result = self.rpc("sync_sportstats_result", {
+                    "p_match_code": match_code,
+                    "p_home_score": score[0],
+                    "p_away_score": score[1],
+                })
+                confirmed += 1
+                log.info("Confirmed SportStatsAPI result %s: %s-%s; RPC=%s",
+                         match_code, score[0], score[1], result)
+
+        log.info("Results sync complete: %s results confirmed, %s provider requests.", confirmed, self.api_calls)
+        return confirmed
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("fixtures",))
+    parser.add_argument("mode", choices=("fixtures", "results"))
     parser.add_argument("--days", type=int, default=7)
     args = parser.parse_args()
     if not 1 <= args.days <= 31:
         parser.error("--days must be between 1 and 31")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    SportStatsSync().sync_fixtures(args.days)
+    sync = SportStatsSync()\n    if args.mode == "fixtures":\n        sync.sync_fixtures(args.days)\n    else:\n        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":\n            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))\n            if local_now.minute != 0 or local_now.hour not in {21, 22, 23, 0}:\n                log.info("Outside scheduled Israel hours 21:00, 22:00, 23:00, 00:00; no provider calls.")\n                return\n        sync.sync_results()
 
 
 if __name__ == "__main__":

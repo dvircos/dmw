@@ -87,6 +87,17 @@ CLUBS = {
     "wolverhampton": ("וולבס", 76),
 }
 
+UCL_LOGOS = {
+"aek athens": 887, "as roma": 104, "roma": 104, "bodo/glimt": 2980, "bodø/glimt": 2980,
+"lask": 4411, "lask linz": 4411, "galatasaray": 432, "dortmund": 124, "borussia dortmund": 124,
+"slovan bratislava": 521, "rb leipzig": 11420, "lens": 175, "feyenoord": 142, "fc porto": 437,
+"porto": 437, "como": 2572, "como 1907": 2572, "sabah baku": 21922, "sabah fk": 21922,
+"slavia prague": 494, "slavia praha": 494, "viking": 510, "viking fk": 510, "shakhtar donetsk": 493,
+"fenerbahce": 436, "fenerbahçe": 436, "psg": 160, "paris saint-germain": 160, "lille": 166,
+"bayern munich": 132, "inter": 110, "stuttgart": 134, "vfb stuttgart": 134,
+"club brugge kv": 570, "club brugge": 570, "sporting cp": 2250, "napoli": 114, "psv": 148, "psv eindhoven": 148
+}
+
 def team_display(name: str) -> str:
     entry = CLUBS.get(normalize(name))
     return entry[0] if entry else hebrew_name(name)
@@ -97,7 +108,10 @@ def team_logo_url(team: dict[str, Any], name: str) -> str | None:
         value = team.get(key)
         if isinstance(value, str) and value.startswith("https://"):
             return value
-    entry = CLUBS.get(normalize(name))
+    key = normalize(name)
+    if key in UCL_LOGOS:
+        return f"https://a.espncdn.com/i/teamlogos/soccer/500/{UCL_LOGOS[key]}.png"
+    entry = CLUBS.get(key)
     return f"https://crests.football-data.org/{entry[1]}.png" if entry else safe_team_flag(name)
 
 

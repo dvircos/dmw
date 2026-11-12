@@ -238,7 +238,12 @@ function renderGames() {
     time.textContent = [when(game.match_time), countdown].filter(Boolean).join(" · ");
     const badge = document.createElement("span");
     badge.className = game.status === "live" ? "font-bold text-rose-400" : game.status === "finished" ? "font-bold text-emerald-400" : "text-slate-400";
-    badge.textContent = game.status === "live" ? "● חי" : (GAME_STATUS[game.status] || game.status);
+    const liveLabel = game.live_status_text === "HT"
+      ? "מחצית"
+      : game.live_status_text
+        ? `● חי · ${game.live_status_text}׳`
+        : "● חי";
+    badge.textContent = game.status === "live" ? liveLabel : (GAME_STATUS[game.status] || game.status);
     head.append(time, badge);
     const teams = document.createElement("div");
     teams.className = "grid grid-cols-[1fr_auto_1fr] items-center gap-2";

@@ -653,21 +653,45 @@ function renderBoard() {
     empty(root, "עדיין אין שחקנים בקבוצה הזו");
     return;
   }
-  state.board.forEach((row, index) => {
+  const podium = state.board.length >= 3 ? document.createElement("div") : null;
+  if (podium) {
+    podium.className = "mb-4 grid grid-cols-3 gap-2";
+    const medals = ["🥇", "🥈", "🥉"];
+    state.board.slice(0, 3).forEach((row, index) => {
+      const mine = row.id === state.user?.id;
+      const card = document.createElement("div");
+      card.className = `min-w-0 rounded-2xl border px-2 py-3 text-center ${mine ? "border-gold bg-gold/15" : "border-slate-700/60 bg-panel"}`;
+      const medal = document.createElement("div");
+      medal.className = "text-2xl";
+      medal.textContent = medals[index];
+      const name = document.createElement("p");
+      name.className = "mt-1 truncate text-xs font-extrabold";
+      name.textContent = row.username;
+      const amount = document.createElement("p");
+      amount.className = "mt-1 truncate text-xs font-bold text-gold";
+      amount.dir = "ltr";
+      amount.textContent = `₪${money(row.balance)}`;
+      card.append(medal, name, amount);
+      podium.append(card);
+    });
+    root.append(podium);
+  }
+  state.board.slice(podium ? 3 : 0).forEach((row, offset) => {
+    const index = offset + (podium ? 3 : 0);
     const item = document.createElement("div");
     const mine = row.id === state.user?.id;
-    item.className = `mb-2 flex items-center justify-between rounded-2xl px-4 py-3 ${mine ? "bg-gold/15 ring-1 ring-gold" : "bg-panel"}`;
+    item.className = `mb-2 flex items-center justify-between rounded-2xl border px-4 py-3 ${mine ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/40 bg-panel"}`;
     const who = document.createElement("div");
-    who.className = "flex items-center gap-3";
+    who.className = "flex min-w-0 items-center gap-3";
     const place = document.createElement("span");
-    place.className = "w-6 text-center font-extrabold text-gold";
+    place.className = "w-7 shrink-0 text-center text-sm font-extrabold text-gold";
     place.textContent = String(index + 1);
     const name = document.createElement("span");
-    name.className = "font-medium";
-    name.textContent = row.username;
+    name.className = "truncate text-sm font-medium";
+    name.textContent = row.username + (mine ? " · אתה" : "");
     who.append(place, name);
     const balance = document.createElement("span");
-    balance.className = "font-bold";
+    balance.className = "shrink-0 text-sm font-bold";
     balance.dir = "ltr";
     balance.textContent = `₪${money(row.balance)}`;
     item.append(who, balance);

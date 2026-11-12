@@ -316,13 +316,13 @@ create trigger settle_winner_market_bets_trigger
 after update of status,home_score,away_score,result_confirmed on public.games
 for each row execute function public.settle_winner_market_bets();
 
-do $
+do $$
 begin
   if exists(select 1 from pg_publication where pubname='supabase_realtime')
      and not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='winner_markets') then
     alter publication supabase_realtime add table public.winner_markets;
   end if;
-end $;
+end $$;
 
 create or replace function public.import_winner_odds(p_matches jsonb)
 returns jsonb

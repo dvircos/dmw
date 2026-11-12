@@ -17,6 +17,7 @@ const state = {
   gameMarkets: [],
   marketSettings: { handicap_ft: true, total_goals_2_5: true, btts: true },
   expandedGameId: null,
+  gameView: "active",
   bets: [],
   betsFilter: "pending",
   board: [],
@@ -32,6 +33,7 @@ const state = {
   slip: [],
   slipOpen: false,
   isAdmin: false,
+  settledBadgeInitialized: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -117,6 +119,8 @@ function showTab(tab) {
   $("view-bets").classList.toggle("hidden", tab !== "bets");
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
+  if (tab === "games") { paintGameViewTabs(); renderGames(); }
+  if (tab === "bets") markSettledBetsSeen();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
   document.querySelectorAll(".nav-btn").forEach((button) => {
     const active = button.dataset.tab === tab;
@@ -150,16 +154,59 @@ function pendingStake(game) {
     .reduce((sum, bet) => sum + Number(bet.bet_amount || 0), 0);
 }
 
+function settledBetIds() {
+  return state.bets
+    .filter((bet) => bet.status === "won" || bet.status === "lost")
+    .map((bet) => String(bet.id));
+}
+
+function seenSettledStorageKey() {
+  return state.user ? `dmw-seen-settled-${state.user.id}` : null;
+}
+
+function renderSettledBadge() {
+  const badge = $("nav-bets-badge");
+  if (!badge) return;
+  const key = seenSettledStorageKey();
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem(key) || "[]"); } catch (_error) {}
+  const seenSet = new Set(Array.isArray(seen) ? seen.map(String) : []);
+  const count = settledBetIds().filter((id) => !seenSet.has(id)).length;
+  badge.textContent = count > 9 ? "9+" : String(count);
+  badge.classList.toggle("hidden", count === 0);
+}
+
+function markSettledBetsSeen() {
+  const key = seenSettledStorageKey();
+  if (!key) return;
+  try {
+    localStorage.setItem(key, JSON.stringify(settledBetIds()));
+  } catch (_error) {}
+  renderSettledBadge();
+}
+
+function paintGameViewTabs() {
+  document.querySelectorAll(".game-view-tab").forEach((button) => {
+    const active = button.dataset.gameView === state.gameView;
+    button.classList.toggle("bg-gold", active);
+    button.classList.toggle("text-ink", active);
+    button.classList.toggle("font-extrabold", active);
+    button.classList.toggle("text-slate-300", !active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+  });
+}
+
 function renderGames() {
   const root = $("view-games");
   const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
   const query = state.query.trim().toLowerCase();
   const games = state.games
+    .filter((game) => state.gameView === "archive" ? (game.status === "finished" || game.status === "cancelled") : (game.status === "upcoming" || game.status === "live"))
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
     .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query))
     .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || new Date(a.match_time) - new Date(b.match_time));
   if (!games.length) {
-    empty(root, query ? "לא נמצאה קבוצה" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו");
+    empty(root, query ? "לא נמצאה קבוצה" : state.gameView === "archive" ? "אין משחקים בארכיון" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו");
     return;
   }
   root.replaceChildren();
@@ -838,6 +885,14 @@ async function refreshBets() {
     return;
   }
   state.bets = data || [];
+  const seenKey = seenSettledStorageKey();
+  if (seenKey && !state.settledBadgeInitialized) {
+    // Establish a baseline once so old results do not appear as new notifications.
+    if (localStorage.getItem(seenKey) === null) markSettledBetsSeen();
+    state.settledBadgeInitialized = true;
+  }
+  renderSettledBadge();
+  if (state.tab === "bets") markSettledBetsSeen();
   renderBets();
   renderGames();
 }
@@ -1279,6 +1334,12 @@ $("auth-form").addEventListener("submit", submitAuth);
 $("logout").addEventListener("click", () => supabase.auth.signOut());
 $("refresh").addEventListener("click", () => refreshAll().then(() => toast("הנתונים עודכנו")));
 document.querySelectorAll(".nav-btn").forEach((button) => button.addEventListener("click", () => showTab(button.dataset.tab)));
+document.querySelectorAll(".game-view-tab").forEach((button) => button.addEventListener("click", () => {
+  state.gameView = button.dataset.gameView;
+  state.expandedGameId = null;
+  paintGameViewTabs();
+  renderGames();
+}));
 document.querySelectorAll(".league-tab").forEach((button) => button.addEventListener("click", () => {
   state.league = button.dataset.league;
   paintLeagueTabs();

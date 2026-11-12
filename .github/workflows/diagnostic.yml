@@ -1,21 +1,93 @@
-
 name: GitHub Actions Diagnostic
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/diagnostic.yml"
 
 permissions:
   contents: read
 
 jobs:
-  diagnostic:
+  sportstats-diagnostic:
     runs-on: ubuntu-latest
     steps:
       - name: Check runner
         run: echo "GitHub Actions runner is working"
 
-      - name: Check repository
-        run: echo "Repository workflow loaded successfully"
+      - name: Probe SportStatsAPI read-only
+        env:
+          SPORTSTATS_API_KEY: ${{ secrets.SPORTSTATS_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os, time, urllib.request, urllib.error, sys
 
-      - name: Finish
-        run: echo "DIAGNOSTIC SUCCESS"
+          base = "https://api.sportstatsapi.com/api/v1"
+          headers = {"Authorization": "Bearer " + os.environ["SPORTSTATS_API_KEY"]}
+          def get(path):
+              req = urllib.request.Request(base + path, headers=headers)
+              try:
+                  with urllib.request.urlopen(req, timeout=30) as response:
+                      body = response.read()
+                      data = json.loads(body)
+                      print("HTTP", response.status,
+                            "remaining=", response.headers.get("X-RateLimit-Remaining"),
+                            "age=", response.headers.get("Age"))
+                      if not data.get("success"):
+                          raise RuntimeError("API returned success=false: " + str(data.get("error")))
+                      return data
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode("utf-8", "replace")
+                  print("HTTP_ERROR", e.code, body[:1000])
+                  raise
+
+          print("STEP 1: fetching soccer league catalogue")
+          catalogue = get("/soccer/leagues")
+          leagues = catalogue.get("data", [])
+          print("LEAGUE_COUNT", len(leagues))
+          targets = {
+              "EPL": ("premier league", "england"),
+              "LA_LIGA": ("la liga", "spain"),
+              "ISRAEL": ("ligat ha'al", "israel"),
+              "NATIONS_LEAGUE": ("uefa nations league", "nations league"),
+              "CHAMPIONS_LEAGUE": ("uefa champions league", "champions league"),
+          }
+          selected = {}
+          for key, needles in targets.items():
+              matches = []
+              for league in leagues:
+                  name = str(league.get("name", "")).casefold()
+                  official = str(league.get("official_name", "")).casefold()
+                  code = str(league.get("code", ""))
+                  if any(n in name or n in official for n in needles):
+                      matches.append(league)
+              selected[key] = matches
+              print("TARGET", key, json.dumps(matches[:10], ensure_ascii=False))
+          print("STEP 2: checking upcoming fixtures per matched competition")
+          for key, matches in selected.items():
+              if not matches:
+                  print("FIXTURES", key, "NO_LEAGUE_MATCH")
+                  continue
+              for league in matches[:3]:
+                  time.sleep(13)
+                  lid = league.get("id")
+                  print("QUERY", key, "league_id=", lid, "name=", league.get("name"))
+                  result = get(f"/soccer/matches?league_id={lid}&future=true&limit=100")
+                  games = result.get("data", [])
+                  print("FIXTURES", key, "count=", len(games),
+                        "meta=", json.dumps(result.get("meta", {}), ensure_ascii=False)[:700])
+                  for game in games[:3]:
+                      print("MATCH_SAMPLE", json.dumps({
+                          "id": game.get("id"), "league_id": game.get("league_id"),
+                          "league_name": game.get("league_name"), "season": game.get("season"),
+                          "round": game.get("round"), "start_at": game.get("start_at"),
+                          "start_date": game.get("start_date"), "start_time": game.get("start_time"),
+                          "status": game.get("status"), "status_code": game.get("status_code"),
+                          "home_team": game.get("home_team"), "away_team": game.get("away_team"),
+                          "full_time_score": game.get("full_time_score"),
+                          "extra_time_score": game.get("extra_time_score"),
+                          "penalty_score": game.get("penalty_score"),
+                      }, ensure_ascii=False))
+          print("DIAGNOSTIC_COMPLETE")
+          PY

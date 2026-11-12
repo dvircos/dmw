@@ -105,7 +105,10 @@ function renderGames() {
   const root = $("view-games");
   const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
   const query = state.query.trim().toLowerCase();
+  const now = Date.now();
+  const horizon = now + 7 * 24 * 60 * 60 * 1000;
   const games = state.games
+    .filter((game) => game.status === "live" || (new Date(game.match_time).getTime() >= now && new Date(game.match_time).getTime() <= horizon))
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
     .filter((game) => {
       if (!query) return true;
@@ -517,7 +520,11 @@ function updatePayout() {
 }
 
 async function refreshGames() {
-  const { data, error } = await supabase.from("games").select("*").order("match_time", { ascending: true }).limit(200);
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const { data, error } = await supabase.from("games").select("*")
+    .or(`status.eq.live,and(match_time.gte.${now.toISOString()},match_time.lte.${horizon.toISOString()})`)
+    .order("match_time", { ascending: true }).limit(200);
   if (error) {
     toast(cleanError(error), "error");
     return;

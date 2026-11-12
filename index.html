@@ -232,6 +232,96 @@
       body[data-theme="light"] #view-board .text-rose-400 {
         color:#be123c !important;
       }
+      /* Light-mode cleanup: every betting-history surface must remain light and readable. */
+      body[data-theme="light"] #view-bets > div:first-child {
+        background:#ffffff !important;
+        border-color:#d7e3f2 !important;
+        box-shadow:0 3px 14px rgba(35,65,105,.06) !important;
+      }
+      body[data-theme="light"] #view-bets > div:first-child button:not(.bg-gold) {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #view-bets > section {
+        background:#ffffff !important;
+        border-color:#d7e3f2 !important;
+        box-shadow:0 4px 16px rgba(35,65,105,.07) !important;
+      }
+      body[data-theme="light"] #view-bets > section .text-slate-100,
+      body[data-theme="light"] #view-bets > section .text-slate-200 {
+        color:#172554 !important;
+      }
+      body[data-theme="light"] #view-bets > section .text-slate-400 {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #view-bets > section .text-rose-300,
+      body[data-theme="light"] #view-bets > section .text-rose-400 {
+        color:#be123c !important;
+      }
+      body[data-theme="light"] #view-bets > section .text-emerald-300,
+      body[data-theme="light"] #view-bets > section .text-emerald-400 {
+        color:#047857 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card {
+        background:#ffffff !important;
+        border-color:#d7e3f2 !important;
+        box-shadow:0 4px 16px rgba(35,65,105,.07) !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-[#152238]"] {
+        background:#edf3fa !important;
+        border-color:#dce6f2 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-[#111d31]"] {
+        background:#f5f8fc !important;
+        border-color:#dce6f2 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-[#1b2b40]"] {
+        background:#ffffff !important;
+        border-color:#d7e3f2 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-slate-100,
+      body[data-theme="light"] #view-bets .bet-history-card .text-slate-200,
+      body[data-theme="light"] #view-bets .bet-history-card .text-slate-50 {
+        color:#172554 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-slate-400 {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-amber-200 {
+        color:#946200 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-emerald-300,
+      body[data-theme="light"] #view-bets .bet-history-card .text-emerald-400 {
+        color:#047857 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-rose-300,
+      body[data-theme="light"] #view-bets .bet-history-card .text-rose-400 {
+        color:#be123c !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-amber-300/15"] {
+        background:#fff3cd !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-emerald-500/20"] {
+        background:#d1fae5 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card [class*="bg-rose-500/20"] {
+        background:#ffe4e6 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-legs-details {
+        background:#f5f8fc !important;
+        border-color:#d7e3f2 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-legs-details summary {
+        color:#172554 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-legs-details .border-t {
+        border-color:#d7e3f2 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card button {
+        border-color:#cbd8e8 !important;
+      }
+      body[data-theme="light"] #view-bets .bet-history-card .text-rose-300 {
+        color:#be123c !important;
+      }
       button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid #e8bd63; outline-offset:2px; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -428,6 +518,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261112-12"></script>
+    <script type="module" src="./js/app.js?v=20261113-01"></script>
   </body>
 </html>

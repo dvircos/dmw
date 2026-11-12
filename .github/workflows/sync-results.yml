@@ -1,0 +1,30 @@
+name: Evening app-game results sync
+
+on:
+  schedule:
+    # 17:00-21:30 UTC = evening in Israel; 10 polls per night.
+    - cron: "0,30 17-21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-football-evening-results
+  cancel-in-progress: false
+
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Poll only started or imminent unsettled games already in the app
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
+        run: python sync_api_football.py results

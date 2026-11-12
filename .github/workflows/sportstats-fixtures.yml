@@ -2,11 +2,6 @@ name: SportStatsAPI fixture import
 # Single controlled import on first rollout; no recurring schedule.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "sync_sportstats.py"
-      - ".github/workflows/sportstats-fixtures.yml"
   workflow_dispatch:
     inputs:
       days:

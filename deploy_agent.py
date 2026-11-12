@@ -26,7 +26,7 @@ from nacl import encoding, public
 ROOT = Path(__file__).resolve().parent
 REPO_NAME = "dmw"
 GITHUB_API = "https://api.github.com"
-SECRETS = ("GITHUB_TOKEN", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_PASSWORD", "API_KEY")
+SECRETS = ("GITHUB_TOKEN", "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_PASSWORD")
 
 
 def required(name: str) -> str:
@@ -332,7 +332,7 @@ def publish(token: str, owner: str, email: str) -> None:
     key_response = requests.get(f"{GITHUB_API}/repos/{owner}/{REPO_NAME}/actions/secrets/public-key", headers=headers, timeout=30)
     key_response.raise_for_status()
     key_body = key_response.json()
-    for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_PASSWORD", "API_KEY"):
+    for name in ("SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DB_PASSWORD"):
         put_secret(token, owner, name, required(name), key_body["key_id"], key_body["key"])
 
     git = find_git()

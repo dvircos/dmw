@@ -835,6 +835,7 @@ function renderSlip() {
   const slip = $("slip");
   const backdrop = $("slip-backdrop");
   const app = $("app-view");
+  const gamesVisible = state.tab === "games" || state.tab === "archive";
   if (!state.slip.length) {
     slip.classList.add("hidden");
     backdrop.classList.add("hidden");
@@ -843,9 +844,15 @@ function renderSlip() {
     app.classList.add("pb-28");
     return;
   }
-  slip.classList.remove("hidden");
-  app.classList.remove("pb-28");
-  app.classList.add("pb-44");
+  // Keep the selected legs, but show the floating slip dock only on games/archive.
+  slip.classList.toggle("hidden", !gamesVisible);
+  if (gamesVisible) {
+    app.classList.remove("pb-28");
+    app.classList.add("pb-44");
+  } else {
+    app.classList.remove("pb-44");
+    app.classList.add("pb-28");
+  }
   const total = slipTotal();
   $("slip-count").textContent = String(state.slip.length);
   $("slip-odds").textContent = total.toFixed(2);

@@ -1,7 +1,7 @@
-"""Sync results for the existing Nations League games only.
+"""Sync results for existing unsettled games across configured leagues.
 
-Uses the repository's configured RapidAPI/FotMob feed and the fixture_id
-already stored on each app game. It never inserts or creates games.
+Uses the configured RapidAPI/FotMob feed and matches provider fixture IDs,
+teams and kickoff to existing app games. It never creates games or changes odds.
 """
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ def main() -> int:
     }
     games = get_existing_games(url, headers)
     if not games:
-        log.info("No unsettled existing Nations League games found.")
+        log.info("No unsettled existing games found.")
         return 0
 
     def belongs(code: str, round_name: str) -> bool:
@@ -115,6 +115,7 @@ def main() -> int:
     now = datetime.now(timezone.utc)
     by_fixture: dict[int, list[dict]] = {}
     fetched_leagues = []
+    provider_row_count = 0
     for league_id, code in LEAGUES:
         league_games = [g for g in eligible_games if belongs(code, g.get("round_name"))]
         if not league_games:
@@ -126,6 +127,7 @@ def main() -> int:
         if not rows:
             raise RuntimeError(f"Sports API returned no {code} fixtures; refusing to report a successful sync.")
         fetched_leagues.append(code)
+        provider_row_count += len(rows)
         for row in rows:
             try:
                 by_fixture.setdefault(int(row["p_fixture_id"]), []).append(row)
@@ -151,7 +153,7 @@ def main() -> int:
             continue
         result = db.rpc("sync_game_result", payload)
         settled += 1
-        log.info("Existing Nations League result settled for game %s: %s", game["id"], result)
+        log.info("Existing result settled for game %s: %s", game["id"], result)
 
     try:
         db.rpc("log_api_request", {
@@ -159,7 +161,7 @@ def main() -> int:
             "p_params": {
                 "leagues_fetched": fetched_leagues,
                 "app_games": len(eligible_games),
-                "provider_rows": len(rows),
+                "provider_rows": provider_row_count,
                 "matched_existing_games": matched,
                 "unmatched_game_ids": unmatched_ids,
                 "settled_results": settled,

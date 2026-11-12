@@ -136,7 +136,7 @@ class SportStatsSync:
                     "p_home_flag": flag_url(home, None),
                     "p_away_flag": flag_url(away, None),
                     "p_match_time": match["kickoff"],
-                    "p_round_name": f"sportstats|{match['league_name']}",
+                    "p_round_name": f"{label}|{match['league_name']}",
                 })
                 imported += 1
                 log.info("Fixture %s (%s): %s", match["code"], label, result)

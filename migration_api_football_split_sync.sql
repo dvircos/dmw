@@ -252,7 +252,9 @@ end;
 $;
 
 revoke all on function public.upsert_api_football_fixture(bigint,text,text,text,text,text,text,timestamptz,text) from public,anon,authenticated;
-revoke all on function public.sync_api_football_result(bigint,text,integer,integer) from public,anon,authenticated;\nrevoke all on function public.sync_api_football_live(bigint,integer,integer) from public,anon,authenticated;
+revoke all on function public.sync_api_football_result(bigint,text,integer,integer) from public,anon,authenticated;
+revoke all on function public.sync_api_football_live(bigint,integer,integer) from public,anon,authenticated;
 grant execute on function public.upsert_api_football_fixture(bigint,text,text,text,text,text,text,timestamptz,text) to service_role;
-grant execute on function public.sync_api_football_result(bigint,text,integer,integer) to service_role;\ngrant execute on function public.sync_api_football_live(bigint,integer,integer) to service_role;
+grant execute on function public.sync_api_football_result(bigint,text,integer,integer) to service_role;
+grant execute on function public.sync_api_football_live(bigint,integer,integer) to service_role;
 notify pgrst, 'reload schema';

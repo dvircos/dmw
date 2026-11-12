@@ -1,16 +1,16 @@
-name: Existing Nations League results sync
+name: Hourly football results sync
 
 on:
   schedule:
-    # 17:00-21:30 UTC = evening in Israel; 10 polls per night.
-    - cron: "0,30 17-21 * * *"
+    # UTC 17:00-22:00 covers Israel 20:00-00:00 in both DST seasons.
+    - cron: "0 17-22 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: existing-nations-evening-results
+  group: hourly-football-results
   cancel-in-progress: false
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Run regression tests
         run: python -m unittest discover -s tests -v
-      - name: Sync results only for existing Nations League games
+      - name: Sync results only for existing unsettled games across configured leagues
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

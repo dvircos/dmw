@@ -201,7 +201,7 @@ function renderGames() {
     toggle.type = "button";
     toggle.className = "mt-4 flex w-full items-center justify-between rounded-xl border border-gold/30 bg-gold/10 px-3 py-3 text-sm font-extrabold text-gold";
     const toggleLabel = document.createElement("span");
-    toggleLabel.textContent = `פתיחת אפשרויות הימור · ${enabledMarkets.length + 1} שווקים זמינים`;
+    toggleLabel.textContent = `פתיחת אפשרויות הימור · ${enabledMarkets.length + ([game.home_odds,game.draw_odds,game.away_odds].some((v)=>Number(v)>=1.01)?1:0)} שווקים זמינים`;
     const toggleIcon = document.createElement("span");
     toggleIcon.textContent = state.expandedGameId === Number(game.id) ? "⌃" : "⌄";
     toggle.append(toggleLabel, toggleIcon);

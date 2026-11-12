@@ -40,7 +40,6 @@ CLUBS = {
     "alaves": ("אלאבס", 263),
     "deportivo la coruna": ("דפורטיבו לה קורוניה", 560),
     "dep a coruna": ("דפורטיבו לה קורוניה", 560),
-    "dep a coruna": ("דפורטיבו לה קורוניה", 560),
     "tottenham": ("טוטנהאם", 73),
     "tottenham hotspur": ("טוטנהאם", 73),
     "ipswich": ("איפסוויץ'", 349),

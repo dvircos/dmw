@@ -2,7 +2,7 @@ name: SportStatsAPI fixture import
 
 on:
   push:
-    branches: [sportstats-adapter]
+    branches: [main]
     paths:
       - "sync_sportstats.py"
       - ".github/workflows/sportstats-fixtures.yml"

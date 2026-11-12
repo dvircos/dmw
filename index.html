@@ -407,6 +407,56 @@
       body[data-theme="light"] #view-games article .text-rose-300 {
         color:#be123c !important;
       }
+      /* Light theme: betting selection sheet controls must stay readable. */
+      body[data-theme="light"] #sheet {
+        background:#ffffff !important;
+        color:#172554 !important;
+        border-color:#d5e2f3 !important;
+        box-shadow:0 24px 80px rgba(15,35,70,.22) !important;
+      }
+      body[data-theme="light"] #sheet .text-white,
+      body[data-theme="light"] #sheet #sheet-match {
+        color:#172554 !important;
+      }
+      body[data-theme="light"] #sheet .text-slate-300,
+      body[data-theme="light"] #sheet .text-slate-400,
+      body[data-theme="light"] #sheet .text-mist {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #sheet .stake {
+        color:#243b5b !important;
+        background:#edf3fb !important;
+        border:1px solid #d5e2f3 !important;
+      }
+      body[data-theme="light"] #sheet input#stake {
+        color:#172554 !important;
+        background:#ffffff !important;
+        border:1px solid #cbd8e8 !important;
+      }
+      body[data-theme="light"] #sheet #sheet-picks button {
+        color:#172554 !important;
+        background:#f1f5fb !important;
+        border-color:#cbd8e8 !important;
+      }
+      body[data-theme="light"] #sheet #sheet-picks button .text-mint {
+        color:#15803d !important;
+      }
+      body[data-theme="light"] #sheet #sheet-payout {
+        color:#1d4ed8 !important;
+      }
+      body[data-theme="light"] #sheet #sheet-cancel {
+        color:#243b5b !important;
+        background:#ffffff !important;
+        border:1px solid #cbd8e8 !important;
+      }
+      body[data-theme="light"] #sheet #sheet-confirm {
+        color:#ffffff !important;
+        background:#2563eb !important;
+        border:1px solid #2563eb !important;
+      }
+      body[data-theme="light"] #sheet button:disabled {
+        opacity:.55 !important;
+      }
       button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid #e8bd63; outline-offset:2px; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -603,6 +653,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-02"></script>
+    <script type="module" src="./js/app.js?v=20261113-03"></script>
   </body>
 </html>

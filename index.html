@@ -90,6 +90,40 @@
       body[data-theme="light"] #slip-drawer, body[data-theme="light"] #sheet { background:#fff !important; border-color:#d5e2f3 !important; }
       body[data-theme="light"] .nav-btn.text-gold { color:#2563eb !important; }
       body[data-theme="light"] .nav-btn { color:#526581; }
+      /* Solid, isolated betting drawer: never let the page bleed through it. */
+      #slip-backdrop:not(.hidden) {
+        display: block;
+        overflow: hidden;
+        background: rgba(5, 12, 27, .86) !important;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+        isolation: isolate;
+      }
+      #slip-drawer {
+        background: #1e293b !important;
+        background-color: #1e293b !important;
+        opacity: 1 !important;
+        isolation: isolate;
+        box-shadow: 0 -18px 60px rgba(0,0,0,.5);
+        border-color: rgba(148,163,184,.24) !important;
+      }
+      #slip-drawer #slip-combined,
+      #slip-drawer #slip-singles { background: #1e293b; }
+      #slip-drawer #slip-combined-legs > div,
+      #slip-drawer #slip-single-legs > div {
+        background: #111c30 !important;
+        border-color: rgba(148,163,184,.22) !important;
+      }
+      .bet-history-card { background-color: #1b2940 !important; }
+      .bet-legs-details summary::-webkit-details-marker { display:none; }
+      .bet-legs-details summary::after { content:"＋"; float:left; color:#e8bd63; }
+      .bet-legs-details[open] summary::after { content:"−"; }
+      body[data-theme="light"] #slip-drawer { background:#fff !important; }
+      body[data-theme="light"] #slip-drawer #slip-combined,
+      body[data-theme="light"] #slip-drawer #slip-singles { background:#fff; }
+      body[data-theme="light"] #slip-drawer #slip-combined-legs > div,
+      body[data-theme="light"] #slip-drawer #slip-single-legs > div { background:#edf4ff !important; }
+      body[data-theme="light"] .bet-history-card { background:#fff !important; }
     </style>
   </head>
   <body class="min-h-screen text-slate-50" data-theme="dark">

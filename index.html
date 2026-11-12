@@ -535,6 +535,63 @@
         color:#ffffff !important;
         border:1px solid #2563eb !important;
       }
+      /* Compact, tappable fixture rows with a single expanded match at a time. */
+      .game-card { border-color:rgba(125,151,185,.24)!important; }
+      .game-card-body { padding:.65rem .8rem; }
+      .game-match-toggle { display:block; width:100%; padding:.12rem 0; text-align:inherit; background:transparent; color:inherit; }
+      .game-match-meta-row { display:flex; align-items:center; justify-content:space-between; gap:.45rem; min-height:1.2rem; margin-bottom:.42rem; }
+      .game-match-time { color:#aebbd0; font-size:.78rem; font-weight:500; line-height:1.3; }
+      .game-status { color:#9eabc0; font-size:.72rem; font-weight:600; white-space:nowrap; }
+      .game-status.is-live { color:#fb7185; }
+      .game-status.is-finished { color:#4ade80; }
+      .game-match-chevron { color:#b7c7df; font-size:1.2rem; line-height:1; margin-inline-start:.15rem; }
+      .game-teams-row { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center; gap:.5rem; min-height:2.55rem; }
+      .game-team-inline { display:flex; align-items:center; justify-content:flex-start; gap:.48rem; min-width:0; }
+      .game-team-inline.away { justify-content:flex-end; }
+      .game-team-inline img { width:2rem!important; height:2rem!important; min-width:2rem; object-fit:contain; border-radius:50%; flex-shrink:0; }
+      .game-team-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:.94rem; line-height:1.2; font-weight:800; }
+      .game-versus { color:#e6edf8; font-size:1rem; font-weight:900; white-space:nowrap; }
+      .game-expanded-panel { border-top:1px solid rgba(125,151,185,.22); padding:.85rem .8rem .8rem; background:rgba(10,20,37,.24); }
+      .game-main-odds { margin-bottom:.8rem; }
+      .game-main-odds-title { margin:0 0 .55rem; text-align:right; font-size:.98rem; font-weight:900; color:#f3f6fc; }
+      .game-main-odds-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.5rem; }
+      .game-odds-button { display:flex; min-width:0; min-height:4.25rem; flex-direction:column; align-items:center; justify-content:center; gap:.28rem; padding:.55rem .3rem; border:1px solid rgba(133,157,190,.3); border-radius:1rem; background:rgba(30,45,68,.78); color:#f8fafc; transition:background .16s ease,border-color .16s ease,transform .16s ease; }
+      .game-odds-button:active { transform:scale(.985); }
+      .game-odds-button:disabled { opacity:.42; }
+      .game-odds-button.is-picked { background:rgba(37,99,235,.32); border-color:#60a5fa; box-shadow:inset 0 0 0 1px #3b82f6; }
+      .game-odds-label { color:#b9c7dc; font-size:.76rem; font-weight:600; line-height:1.2; }
+      .game-odds-value { color:#f8fafc; font-size:1.32rem; font-weight:900; line-height:1.1; }
+      .game-market-group { overflow:hidden; margin-top:.5rem; border:1px solid rgba(125,151,185,.22); border-radius:.95rem; background:rgba(30,45,68,.56); }
+      .game-market-toggle { display:flex; width:100%; min-height:2.8rem; align-items:center; justify-content:space-between; gap:.75rem; padding:.55rem .8rem; color:#dbe5f4; font-size:.86rem; font-weight:800; text-align:right; }
+      .game-market-chevron { color:#c3d0e3; font-size:1.15rem; }
+      .game-market-outcomes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.5rem; padding:.1rem .6rem .65rem; }
+      .game-secondary-odds { min-height:3.7rem; border-radius:.8rem; }
+      .game-secondary-odds .game-odds-value { font-size:1.12rem; }
+      .game-no-odds { padding:.7rem .3rem; color:#aebbd0; text-align:center; font-size:.82rem; }
+      body[data-theme="light"] .game-card { background:#ffffff!important; border-color:#d7e3f2!important; }
+      body[data-theme="light"] .game-match-time,
+      body[data-theme="light"] .game-status { color:#526581; }
+      body[data-theme="light"] .game-status.is-live { color:#be123c; }
+      body[data-theme="light"] .game-status.is-finished { color:#047857; }
+      body[data-theme="light"] .game-versus { color:#263b5b; }
+      body[data-theme="light"] .game-expanded-panel { background:#f4f7fc; border-color:#d7e3f2; }
+      body[data-theme="light"] .game-main-odds-title { color:#172554; }
+      body[data-theme="light"] .game-odds-button { background:#ffffff; border-color:#cbd8e8; color:#172554; }
+      body[data-theme="light"] .game-odds-button.is-picked { background:#dbeafe; border-color:#60a5fa; }
+      body[data-theme="light"] .game-odds-label { color:#526581; }
+      body[data-theme="light"] .game-odds-value { color:#172554; }
+      body[data-theme="light"] .game-market-group { background:#ffffff; border-color:#d7e3f2; }
+      body[data-theme="light"] .game-market-toggle { color:#243b5b; }
+      body[data-theme="light"] .game-market-chevron { color:#526581; }
+      body[data-theme="light"] .game-no-odds { color:#526581; }
+      @media (max-width:380px) {
+        .game-card-body { padding:.58rem .65rem; }
+        .game-team-inline { gap:.34rem; }
+        .game-team-inline img { width:1.8rem!important; height:1.8rem!important; min-width:1.8rem; }
+        .game-team-name { font-size:.87rem; }
+        .game-versus { font-size:.92rem; }
+        .game-expanded-panel { padding:.72rem .6rem; }
+      }
       button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid #e8bd63; outline-offset:2px; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -731,6 +788,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-05"></script>
+    <script type="module" src="./js/app.js?v=20261113-06"></script>
   </body>
 </html>

@@ -114,6 +114,26 @@
         background: #111c30 !important;
         border-color: rgba(148,163,184,.22) !important;
       }
+      /* Calm full-height betting sheet, solid navigation, clear league state */
+      #slip-backdrop:not(.hidden){display:block;background:rgba(4,10,22,.80)!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+      #slip-drawer{height:min(92dvh,58rem)!important;max-height:94dvh!important;background:#1e2b40!important;background-color:#1e2b40!important;opacity:1!important;border-color:rgba(180,196,220,.22)!important;box-shadow:0 -20px 70px rgba(0,0,0,.48)!important;overscroll-behavior:contain;padding-bottom:calc(1.25rem + env(safe-area-inset-bottom))!important}
+      #slip-drawer #slip-combined,#slip-drawer #slip-singles{background:transparent!important}
+      #slip-drawer #slip-combined-legs>div,#slip-drawer #slip-single-legs>div{background:#142238!important;border:1px solid rgba(160,180,210,.18)!important;border-radius:1.1rem!important;padding:.9rem!important;margin-bottom:.65rem!important}
+      #slip-drawer input{background:#f8fafc!important;color:#172033!important;border-color:#cbd5e1!important}
+      #slip-drawer #slip-clear{background:#2b3b53;border-color:#52647d}
+      #league-tabs{scrollbar-width:thin;scrollbar-color:#d5ad5c #24334b;background:#1a2940!important}
+      .league-tab{border:1px solid transparent;transition:background .18s ease,color .18s ease,border-color .18s ease,box-shadow .18s ease}
+      .league-tab.active{color:#172033!important;background:linear-gradient(180deg,#f5d78e,#e5b95e)!important;border-color:#ffe7ae!important;box-shadow:0 2px 10px rgba(229,185,94,.28),inset 0 1px rgba(255,255,255,.55);font-weight:800!important}
+      .league-tab:not(.active){color:#cbd5e1!important;background:#22334c!important}
+      nav.fixed.bottom-0{background:#263b57!important;background-color:#263b57!important;opacity:1!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border-top:1px solid rgba(190,207,230,.24)!important;box-shadow:0 -8px 24px rgba(0,0,0,.22)}
+      nav.fixed.bottom-0 .nav-btn{color:#c4d0e0}
+      nav.fixed.bottom-0 .nav-btn.text-gold{color:#f2cc79!important}
+      body[data-theme="light"] #slip-drawer{background:#f3f7fc!important}
+      body[data-theme="light"] #slip-drawer>div:first-child{background:#e5edf7!important}
+      body[data-theme="light"] #slip-drawer #slip-combined-legs>div,body[data-theme="light"] #slip-drawer #slip-single-legs>div{background:#e7eef8!important}
+      body[data-theme="light"] nav.fixed.bottom-0{background:#e6eef9!important}
+      body[data-theme="light"] nav.fixed.bottom-0 .nav-btn{color:#526581}
+      body[data-theme="light"] nav.fixed.bottom-0 .nav-btn.text-gold{color:#1d4ed8!important}
       .bet-history-card { background-color: #1b2940 !important; }
       .bet-legs-details summary::-webkit-details-marker { display:none; }
       .bet-legs-details summary::after { content:"＋"; float:left; color:#e8bd63; }
@@ -213,8 +233,9 @@
       </div>
 
       <div id="slip-backdrop" class="fixed inset-0 z-50 hidden bg-[#0f172a]/70">
-        <aside id="slip-drawer" class="absolute inset-x-0 bottom-0 mx-auto max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-slate-700/50 bg-panel p-4 shadow-2xl">
-          <div class="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-ink/70 p-1 text-sm">
+        <aside id="slip-drawer" class="absolute inset-x-0 bottom-0 mx-auto h-[min(92dvh,58rem)] max-h-[94dvh] w-full max-w-xl overflow-y-auto rounded-t-[1.8rem] border border-slate-600/60 bg-panel px-4 pb-5 pt-3 shadow-2xl">
+          <div class="sticky top-0 z-10 -mx-4 mb-4 border-b border-slate-600/50 bg-[#24334b] px-4 pb-3 pt-1"><div class="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-400/60"></div><div class="flex items-center justify-between"><div><p class="text-lg font-extrabold text-white">סל ההימורים</p><p class="mt-0.5 text-xs text-slate-300">בדוק את הבחירות לפני האישור</p></div><button id="slip-close" type="button" aria-label="סגירת הסל" class="rounded-full border border-slate-400/30 bg-white/10 px-3 py-2 text-sm font-bold text-white">סגירה ✕</button></div></div>
+          <div class="mb-3 grid grid-cols-2 gap-1 rounded-2xl border border-slate-600/50 bg-[#111d31] p-1 text-sm">
             <button id="slip-tab-combined" type="button" class="rounded-xl bg-gold py-2 font-bold text-ink">הימור משולב</button>
             <button id="slip-tab-singles" type="button" class="rounded-xl py-2 font-medium text-mist">הימורים נפרדים</button>
           </div>

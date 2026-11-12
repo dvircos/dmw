@@ -39,6 +39,17 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('if (isNavigation)', sw)
         self.assertNotIn('hit || caches.match("./index.html")', sw)
 
+    def test_result_sync_is_scheduled_every_30_minutes(self):
+        workflow = (ROOT / ".github" / "workflows" / "sportstats-results.yml").read_text(encoding="utf-8")
+        self.assertIn('cron: "*/30 * * * *"', workflow)
+
+    def test_result_sync_only_checks_games_from_last_two_hours(self):
+        sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
+        self.assertIn("window_start = now - timedelta(hours=2)", sync)
+        self.assertIn('"match_time": f"gte.{window_start.isoformat()}"', sync)
+        self.assertIn('"and": f"(match_time.lt.{now.isoformat()})"', sync)
+        self.assertIn("league_codes = sorted({str(g[\"sportstats_league_code\"]) for g in games", sync)
+
     def test_winner_odds_import_is_admin_guarded(self):
         migration = (ROOT / "migration_security_and_performance.sql").read_text(encoding="utf-8")
         self.assertIn("if not public.admin_is_admin() then", migration)

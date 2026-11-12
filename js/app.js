@@ -14,6 +14,10 @@ const state = {
   user: null,
   balance: 0,
   games: [],
+  archiveGames: [],
+  archiveOffset: 0,
+  archiveHasMore: false,
+  archiveLoading: false,
   gameMarkets: [],
   marketSettings: { handicap_ft: true, total_goals_2_5: true, btts: true },
   expandedGameId: null,
@@ -34,6 +38,7 @@ const state = {
   slipOpen: false,
   isAdmin: false,
   settledBadgeInitialized: false,
+  refreshing: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -122,7 +127,6 @@ function showTab(tab) {
   $("view-bets").classList.toggle("hidden", tab !== "bets");
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
-  $("games-tools").classList.toggle("hidden", tab === "archive");
   if (gamesVisible) renderGames();
   if (tab === "bets") markSettledBetsSeen();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
@@ -191,18 +195,34 @@ function markSettledBetsSeen() {
 
 function renderGames() {
   const root = $("view-games");
-  const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
+  const isArchive = state.gameView === "archive";
   const query = state.query.trim().toLowerCase();
-  const games = state.games
-    .filter((game) => state.gameView === "archive" ? (game.status === "finished" || game.status === "cancelled") : (game.status === "upcoming" || game.status === "live"))
+  const source = isArchive ? state.archiveGames : state.games;
+  const games = source
     .filter((game) => state.league === "all" || leagueKey(game) === state.league)
-    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query))
-    .sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || new Date(a.match_time) - new Date(b.match_time));
+    .filter((game) => !query || `${game.home_team || ""} ${game.away_team || ""}`.toLowerCase().includes(query));
+  root.replaceChildren();
+  if (isArchive) {
+    const heading = document.createElement("div");
+    heading.className = "mb-3 flex items-center justify-between gap-2";
+    const title = document.createElement("h2");
+    title.className = "text-lg font-extrabold";
+    title.textContent = "ארכיון משחקים";
+    const count = document.createElement("span");
+    count.className = "text-xs text-slate-400";
+    count.textContent = `${state.archiveGames.length} משחקים נטענו`;
+    heading.append(title, count);
+    root.append(heading);
+  }
   if (!games.length) {
-    empty(root, query ? "לא נמצאה קבוצה" : state.gameView === "archive" ? "אין משחקים בארכיון" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו");
+    const message = query ? "לא נמצאה קבוצה" : isArchive ? "אין משחקים בארכיון" : state.league === "all" ? "אין משחקים להצגה" : "אין משחקים בליגה הזו";
+    const placeholder = document.createElement("p");
+    placeholder.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-10 text-center text-sm text-mist";
+    placeholder.textContent = message;
+    root.append(placeholder);
+    if (isArchive && state.archiveHasMore) appendArchiveMore(root);
     return;
   }
-  root.replaceChildren();
   games.forEach((game) => {
     const card = document.createElement("article");
     card.className = "mb-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-panel shadow-lg";
@@ -211,9 +231,10 @@ function renderGames() {
     const head = document.createElement("div");
     head.className = "mb-3 flex items-center justify-between gap-2 text-xs text-slate-400";
     const time = document.createElement("span");
-    time.textContent = when(game.match_time);
+    const countdown = !isArchive ? countdownLabel(game) : "";
+    time.textContent = [when(game.match_time), countdown].filter(Boolean).join(" · ");
     const badge = document.createElement("span");
-    badge.className = game.status === "live" ? "font-bold text-rose-400" : "text-slate-400";
+    badge.className = game.status === "live" ? "font-bold text-rose-400" : game.status === "finished" ? "font-bold text-emerald-400" : "text-slate-400";
     badge.textContent = game.status === "live" ? "● חי" : (GAME_STATUS[game.status] || game.status);
     head.append(time, badge);
     const teams = document.createElement("div");
@@ -235,13 +256,13 @@ function renderGames() {
       body.append(badgeStake);
     }
 
-    const enabledMarkets = state.gameMarkets.filter((market) =>
+    const enabledMarkets = isArchive ? [] : state.gameMarkets.filter((market) =>
       Number(market.game_id) === Number(game.id) &&
       market.active !== false &&
       state.marketSettings[market.market_key] !== false
     );
-    const open = game.status === "upcoming" && new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
-    const hasMainOdds = [game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01);
+    const open = !isArchive && game.status === "upcoming" && new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
+    const hasMainOdds = !isArchive && [game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01);
 
     // Main 1X2 odds are always visible directly on the game card.
     if (hasMainOdds) {
@@ -268,23 +289,28 @@ function renderGames() {
       body.append(mainOdds);
     }
 
-    const toggle = document.createElement("button");
-    toggle.type = "button";
-    toggle.setAttribute("aria-label", state.expandedGameId === Number(game.id) ? "סגירת שווקים נוספים" : "הצגת שווקים נוספים");
-    toggle.setAttribute("aria-expanded", state.expandedGameId === Number(game.id) ? "true" : "false");
-    toggle.className = "mx-auto mt-2 flex h-8 w-10 items-center justify-center rounded-full text-slate-400 transition hover:bg-white/5 hover:text-gold";
-    const toggleIcon = document.createElement("span");
-    toggleIcon.className = "text-xl leading-none";
-    toggleIcon.textContent = state.expandedGameId === Number(game.id) ? "⌃" : "⌄";
-    toggle.append(toggleIcon);
-    toggle.addEventListener("click", () => {
-      state.expandedGameId = state.expandedGameId === Number(game.id) ? null : Number(game.id);
-      renderGames();
-    });
-    body.append(toggle);
+    if (enabledMarkets.length) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      const expanded = state.expandedGameId === Number(game.id);
+      toggle.setAttribute("aria-label", expanded ? "סגירת שווקים נוספים" : "הצגת שווקים נוספים");
+      toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+      toggle.className = "mx-auto mt-3 flex min-h-9 items-center justify-center gap-2 rounded-full border border-slate-700/60 px-4 text-xs font-bold text-slate-300 transition hover:border-gold/50 hover:text-gold";
+      const label = document.createElement("span");
+      label.textContent = expanded ? "הסתרת שווקים" : `${enabledMarkets.length} שווקים נוספים`;
+      const toggleIcon = document.createElement("span");
+      toggleIcon.className = "text-base leading-none";
+      toggleIcon.textContent = expanded ? "⌃" : "⌄";
+      toggle.append(label, toggleIcon);
+      toggle.addEventListener("click", () => {
+        state.expandedGameId = expanded ? null : Number(game.id);
+        renderGames();
+      });
+      body.append(toggle);
+    }
     card.append(body);
 
-    if (state.expandedGameId === Number(game.id)) {
+    if (enabledMarkets.length && state.expandedGameId === Number(game.id)) {
       const panel = document.createElement("div");
       panel.className = "space-y-4 border-t border-slate-700/60 bg-ink/20 p-4";
       enabledMarkets.forEach((market) => {
@@ -320,6 +346,40 @@ function renderGames() {
     }
     root.append(card);
   });
+  if (isArchive && state.archiveHasMore) appendArchiveMore(root);
+}
+
+function appendArchiveMore(root) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.disabled = state.archiveLoading;
+  button.className = "mb-5 w-full rounded-xl border border-slate-600/60 bg-panel px-4 py-3 text-sm font-bold text-slate-200 disabled:opacity-50";
+  button.textContent = state.archiveLoading ? "טוען משחקים..." : "הצגת משחקים ישנים יותר";
+  button.addEventListener("click", loadMoreArchive);
+  root.append(button);
+}
+
+async function loadMoreArchive() {
+  if (state.archiveLoading || !state.archiveHasMore) return;
+  state.archiveLoading = true;
+  renderGames();
+  const from = state.archiveOffset;
+  const to = from + 49;
+  const { data, error } = await supabase.from("games").select("*")
+    .in("status", ["finished", "cancelled"])
+    .order("match_time", { ascending: false })
+    .range(from, to);
+  state.archiveLoading = false;
+  if (error) {
+    toast(cleanError(error), "error");
+    renderGames();
+    return;
+  }
+  const rows = data || [];
+  state.archiveGames = [...state.archiveGames, ...rows];
+  state.archiveOffset += rows.length;
+  state.archiveHasMore = rows.length === 50;
+  renderGames();
 }
 
 function teamColumn(url, name) {
@@ -363,13 +423,13 @@ function renderBets() {
 
   // Cancelled selections are not real betting history: their stake was returned.
   // Keep only placed bets (pending) and bets that were actually settled (won/lost).
-  const historyBets = state.bets.filter((bet) => ["pending", "won", "lost"].includes(bet.status));
+  const historyBets = state.bets.filter((bet) => ["pending", "won", "lost", "void"].includes(bet.status));
   const isPending = (bet) => bet.status === "pending";
   const visible = historyBets.filter((bet) => state.betsFilter === "all"
     || (state.betsFilter === "pending" ? isPending(bet) : !isPending(bet)));
   const counts = {
     pending: historyBets.filter(isPending).length,
-    settled: historyBets.filter((bet) => bet.status === "won" || bet.status === "lost").length,
+    settled: historyBets.filter((bet) => ["won", "lost", "void"].includes(bet.status)).length,
   };
   tabs.querySelectorAll("button").forEach((button, index) => {
     const key = filters[index][0];
@@ -402,7 +462,7 @@ function renderBets() {
     heading.append(title, sub);
 
     const status = document.createElement("span");
-    status.className = `shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${bet.status === "won" ? "bg-emerald-400/15 text-emerald-300" : bet.status === "lost" || bet.status === "cancelled" ? "bg-rose-400/15 text-rose-300" : "bg-amber-300/15 text-amber-200"}`;
+    status.className = `shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${bet.status === "won" ? "bg-emerald-400/15 text-emerald-300" : bet.status === "lost" ? "bg-rose-400/15 text-rose-300" : bet.status === "void" ? "bg-slate-400/15 text-slate-300" : "bg-amber-300/15 text-amber-200"}`;
     status.textContent = BET_STATUS[bet.status] || bet.status;
     top.append(heading, status);
     card.append(top);
@@ -442,10 +502,12 @@ function renderBets() {
     stake.append(stakeValue);
     const returnBox = document.createElement("div");
     returnBox.className = "text-left";
-    returnBox.innerHTML = '<span class="block text-[11px] text-slate-400">זכייה אפשרית</span>';
+    returnBox.innerHTML = `<span class="block text-[11px] text-slate-400">${bet.status === "pending" ? "זכייה אפשרית" : bet.status === "won" ? "תשלום בפועל" : bet.status === "void" ? "החזר" : "תשלום"}</span>`;
     const payout = document.createElement("strong");
     payout.className = "mt-0.5 block text-base text-gold";
-    payout.textContent = `₪${money(bet.potential_payout)}`;
+    payout.textContent = `₪${money(bet.status === "lost" ? 0 : bet.potential_payout)}`;
+    if (bet.status === "lost") payout.className = "mt-0.5 block text-base text-rose-300";
+    if (bet.status === "void") payout.className = "mt-0.5 block text-base text-slate-300";
     returnBox.append(payout);
     metrics.append(stake, returnBox);
     card.append(metrics);
@@ -847,8 +909,9 @@ function updatePayout() {
 }
 
 async function refreshGames() {
-  const [gamesResult, marketsResult, settingsResult] = await Promise.all([
-    supabase.from("games").select("*").order("match_time", { ascending: true }).limit(200),
+  const [gamesResult, archiveResult, marketsResult, settingsResult] = await Promise.all([
+    supabase.from("games").select("*").in("status", ["upcoming", "live"]).order("match_time", { ascending: true }).limit(200),
+    supabase.from("games").select("*").in("status", ["finished", "cancelled"]).order("match_time", { ascending: false }).range(0, 49),
     supabase.from("winner_markets").select("id,game_id,market_key,market_label,line,outcomes,active").eq("active", true),
     supabase.rpc("get_market_display_settings")
   ]);
@@ -857,6 +920,13 @@ async function refreshGames() {
     return;
   }
   state.games = gamesResult.data || [];
+  if (!archiveResult.error) {
+    state.archiveGames = archiveResult.data || [];
+    state.archiveOffset = state.archiveGames.length;
+    state.archiveHasMore = state.archiveGames.length === 50;
+  } else if (state.tab === "archive") {
+    toast(cleanError(archiveResult.error), "error");
+  }
   state.gameMarkets = marketsResult.error ? [] : (marketsResult.data || []);
   state.marketSettings = settingsResult.error
     ? { handicap_ft: true, total_goals_2_5: true, btts: true }
@@ -1068,7 +1138,16 @@ async function refreshProfile() {
 }
 
 async function refreshAll() {
-  await Promise.all([refreshProfile(), refreshGames(), refreshBets(), refreshBoard()]);
+  if (state.refreshing) return;
+  state.refreshing = true;
+  const button = $("refresh");
+  if (button) button.disabled = true;
+  try {
+    await Promise.all([refreshProfile(), refreshGames(), refreshBets(), refreshBoard()]);
+  } finally {
+    state.refreshing = false;
+    if (button) button.disabled = false;
+  }
 }
 
 function subscribe() {
@@ -1108,6 +1187,10 @@ function subscribe() {
 async function enterApp(session) {
   if (state.user?.id === session.user.id) return;
   state.user = session.user;
+  state.settledBadgeInitialized = false;
+  state.archiveGames = [];
+  state.archiveOffset = 0;
+  state.archiveHasMore = false;
   $("auth-view").classList.add("hidden");
   $("app-view").classList.remove("hidden");
   const ensured = await supabase.rpc("ensure_profile");
@@ -1138,6 +1221,10 @@ function leaveApp() {
   state.clock = null;
   state.channel = null;
   state.user = null;
+  state.settledBadgeInitialized = false;
+  state.archiveGames = [];
+  state.archiveOffset = 0;
+  state.archiveHasMore = false;
   state.isAdmin = false;
   $("admin-nav").classList.add("hidden");
   state.slip = [];
@@ -1377,6 +1464,17 @@ $("slip-confirm").addEventListener("click", placeSlip);
 
 
 // Winner sync is handled by the extension content script directly through authenticated Supabase RPC.
+
+function updateNetworkStatus() {
+  const banner = $("network-status");
+  if (!banner) return;
+  const offline = !navigator.onLine;
+  banner.classList.toggle("hidden", !offline);
+  banner.textContent = offline ? "אין חיבור לאינטרנט · מוצגים רק נתונים שמורים" : "";
+}
+window.addEventListener("offline", updateNetworkStatus);
+window.addEventListener("online", updateNetworkStatus);
+updateNetworkStatus();
 
 registerServiceWorker();
 initVisualPreferences();

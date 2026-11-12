@@ -107,6 +107,15 @@ class Sync:
         r.raise_for_status()
         body = r.json()
         if body.get("errors") not in (None, {}, []):
+            try:
+                self.rpc("log_api_request", {
+                    "p_endpoint": "/fixtures/provider-error",
+                    "p_params": {"purpose": purpose, "errors": body.get("errors")},
+                    "p_status": 422,
+                    "p_purpose": purpose,
+                })
+            except Exception:
+                pass
             raise RuntimeError(f"API-Football error for {purpose}: {body['errors']}")
         rows = body.get("response") or []
         total = int((body.get("paging") or {}).get("total") or 1)
@@ -174,6 +183,13 @@ class Sync:
             "league": 633, "season": season, "from": start, "to": end,
             "timezone": "Asia/Jerusalem",
         }, "map-existing-nations-only")
+        self.rpc("log_api_request", {
+            "p_endpoint": "/fixtures/mapping-summary",
+            "p_params": {"app_games": len(games), "provider_fixtures": len(fixtures),
+                         "date_from": start, "date_to": end, "season": season},
+            "p_status": 200,
+            "p_purpose": "map-existing-nations-only",
+        })
 
         candidates = {}
         reverse = {}
@@ -220,6 +236,16 @@ class Sync:
                 f"{self.url}/rest/v1/games", headers=headers, params=params, json=patch, timeout=40
             )
             if response.status_code >= 300:
+                try:
+                    self.rpc("log_api_request", {
+                        "p_endpoint": "/games/map-existing-error",
+                        "p_params": {"game_id": game_id, "api_fixture_id": fixture_id,
+                                     "error": response.text[:300]},
+                        "p_status": response.status_code,
+                        "p_purpose": "map-existing-nations-only",
+                    })
+                except Exception:
+                    pass
                 raise RuntimeError(f"Could not map existing game {game_id}: HTTP {response.status_code}: {response.text[:300]}")
             changed = response.json()
             if len(changed) != 1:

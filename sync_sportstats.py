@@ -276,7 +276,7 @@ class SportStatsSync:
             return hs, aws
         # Fallback only to the provider's explicit full-time score string.
         score = str(row.get("full_time_score") or "")
-        match = re.fullmatch(r"\\s*\\[\\s*(\\d+)\\s*[-:]\\s*(\\d+)\\s*\\]\\s*", score)
+        match = re.fullmatch(r"\s*\[\s*(\d+)\s*[-:]\s*(\d+)\s*\]\s*", score)
         if match:
             return int(match.group(1)), int(match.group(2))
         return None

@@ -1,38 +1,30 @@
-
-name: Sync leagues
+name: Weekly fixture catalogue
 
 on:
   schedule:
-    # UTC schedule; main.py filters this to 20:00-23:30 Israel time (DST-safe).
-    - cron: "0,30 17-21 * * *"
+    # One weekly catalogue refresh; results are handled by sync-results.yml.
+    - cron: "0 2 * * 0"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: sync-nations-league
-  cancel-in-progress: true
+  group: api-football-weekly-fixtures
+  cancel-in-progress: false
 
 jobs:
-  sync:
+  fixtures:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-
-      - name: Sync fixtures and 90-minute results
+      - run: pip install -r requirements.txt
+      - name: Sync next seven days of scheduled fixtures only
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           API_KEY: ${{ secrets.API_KEY }}
-        run: python main.py
+        run: python sync_api_football.py fixtures

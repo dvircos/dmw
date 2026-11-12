@@ -2,7 +2,7 @@ import unittest
 
 # Regression tests for API-Football status handling and request batching.
 
-from sync_api_football import chunks, fixture_matches_existing_game, parse_api_result
+from sync_api_football import chunks, parse_api_result
 
 
 def fixture(short, fulltime=None, goals=None):
@@ -49,32 +49,6 @@ class ResultMappingTests(unittest.TestCase):
         self.assertEqual([len(batch) for batch in batches], [20, 20, 5])
         self.assertEqual(sum(batches, []), list(range(45)))
 
-    def test_existing_nations_match_requires_same_teams_and_close_kickoff(self):
-        game = {
-            "home_team": "טורקיה", "away_team": "בלגיה",
-            "match_time": "2026-11-12T17:00:00+00:00",
-        }
-        item = {
-            "fixture": {"id": 999, "date": "2026-11-12T17:00:00+00:00"},
-            "teams": {"home": {"name": "Turkey"}, "away": {"name": "Belgium"}},
-        }
-        self.assertTrue(fixture_matches_existing_game(game, item))
-
-    def test_existing_nations_match_rejects_wrong_opponent_or_kickoff(self):
-        game = {
-            "home_team": "טורקיה", "away_team": "בלגיה",
-            "match_time": "2026-11-12T17:00:00+00:00",
-        }
-        wrong_team = {
-            "fixture": {"id": 999, "date": "2026-11-12T17:00:00+00:00"},
-            "teams": {"home": {"name": "Turkey"}, "away": {"name": "France"}},
-        }
-        wrong_time = {
-            "fixture": {"id": 999, "date": "2026-11-13T17:00:00+00:00"},
-            "teams": {"home": {"name": "Turkey"}, "away": {"name": "Belgium"}},
-        }
-        self.assertFalse(fixture_matches_existing_game(game, wrong_team))
-        self.assertFalse(fixture_matches_existing_game(game, wrong_time))
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ export const BET_STATUS = {
   pending: "ממתין",
   won: "זכייה",
   lost: "הפסד",
-  void: "בוטל",
+  void: "הוחזר",
   cancelled: "בוטל",
 };
 

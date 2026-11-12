@@ -9,9 +9,9 @@ on:
       - ".github/workflows/sportstats-results.yml"
   # Allow a one-off manual run without changing the recurring schedule.
   workflow_dispatch:
-  # Check every 30 minutes; pending matches remain eligible until FT is confirmed.
+  # Avoid the top/bottom of the hour to reduce scheduled-run contention.
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "7,37 * * * *"
 
 permissions:
   contents: read

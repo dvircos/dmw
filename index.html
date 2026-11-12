@@ -134,6 +134,12 @@
       body[data-theme="light"] nav.fixed.bottom-0{background:#e6eef9!important}
       body[data-theme="light"] nav.fixed.bottom-0 .nav-btn{color:#526581}
       body[data-theme="light"] nav.fixed.bottom-0 .nav-btn.text-gold{color:#1d4ed8!important}
+      #slip{z-index:45!important;bottom:calc(5.35rem + env(safe-area-inset-bottom))!important}
+      #slip-toggle{min-height:4.4rem;transition:transform .16s ease,box-shadow .16s ease}
+      #slip-toggle:active{transform:scale(.985)}
+      body[data-theme="light"] #slip-toggle{background:#fff!important;color:#172554!important;border-color:#cbdcf1!important;box-shadow:0 8px 24px rgba(35,65,105,.18)!important}
+      body[data-theme="light"] #slip-toggle .text-slate-300{color:#526581!important}
+      body[data-theme="light"] #slip-toggle .bg-white\/10{background:#eaf2ff!important}
       .bet-history-card { background-color: #1b2940 !important; }
       .bet-legs-details summary::-webkit-details-marker { display:none; }
       .bet-legs-details summary::after { content:"＋"; float:left; color:#e8bd63; }
@@ -225,10 +231,18 @@
         <section id="view-admin" class="hidden"></section>
       </main>
 
-      <div id="slip" class="fixed inset-x-3 z-40 mx-auto hidden max-w-xl" style="bottom: calc(4.4rem + env(safe-area-inset-bottom))">
-        <button id="slip-toggle" type="button" class="flex w-full items-center justify-between rounded-2xl bg-gold px-4 py-3 font-extrabold text-ink shadow-xl">
-          <span>🛒 סל הימורים (<span id="slip-count">0</span>)</span>
-          <span id="slip-odds" dir="ltr"></span>
+      <div id="slip" class="fixed inset-x-3 z-40 mx-auto hidden max-w-xl" style="bottom: calc(5.15rem + env(safe-area-inset-bottom))">
+        <button id="slip-toggle" type="button" aria-label="פתיחת הבחירות שלי לבדיקה ואישור" class="flex w-full items-center gap-3 rounded-2xl border border-slate-500/50 bg-[#263b57] px-4 py-3 text-right text-white shadow-[0_8px_28px_rgba(0,0,0,.38)]">
+          <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-xl" aria-hidden="true">🧾</span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-extrabold">הבחירות שלי · <span id="slip-count">0</span></span>
+            <span class="mt-0.5 block text-xs text-slate-300">מעבר לבדיקה ולאישור ההימור</span>
+          </span>
+          <span class="shrink-0 text-left">
+            <span class="block text-[10px] text-slate-300">יחס מצטבר</span>
+            <span id="slip-odds" class="block text-lg font-extrabold text-[#f2cc79]" dir="ltr"></span>
+          </span>
+          <span class="shrink-0 rounded-xl bg-[#f2cc79] px-3 py-2 text-xs font-extrabold text-[#172033]">בדיקה ואישור ←</span>
         </button>
       </div>
 

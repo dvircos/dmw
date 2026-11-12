@@ -101,6 +101,20 @@ function pendingStake(game) {
     .reduce((sum, bet) => sum + Number(bet.bet_amount || 0), 0);
 }
 
+function isPriorityMatch(game) {
+  const priorityTeams = new Set([
+    "ריאל מדריד",
+    "ברצלונה",
+    "מנצ'סטר יונייטד",
+    "מנצ'סטר סיטי",
+    "ארסנל",
+    "ליברפול",
+    "צ'לסי",
+  ]);
+  const normalize = (name) => String(name || "").trim().replace(/[׳']/g, "'");
+  return priorityTeams.has(normalize(game.home_team)) || priorityTeams.has(normalize(game.away_team));
+}
+
 function renderGames() {
   const root = $("view-games");
   const rank = { live: 0, upcoming: 1, finished: 2, cancelled: 3 };
@@ -117,6 +131,8 @@ function renderGames() {
     .sort((a, b) => {
       const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
       if (byStatus) return byStatus;
+      const byPriority = Number(isPriorityMatch(b)) - Number(isPriorityMatch(a));
+      if (byPriority) return byPriority;
       return new Date(a.match_time) - new Date(b.match_time);
     });
   if (!games.length) {

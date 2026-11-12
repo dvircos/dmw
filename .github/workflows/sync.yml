@@ -1,8 +1,6 @@
 name: Weekly fixture catalogue
 
 on:
-  push:
-    branches: [main]
   schedule:
     # One weekly catalogue refresh; results are handled by sync-results.yml.
     - cron: "0 2 * * 0"

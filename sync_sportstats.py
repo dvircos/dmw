@@ -198,13 +198,20 @@ class SportStatsSync:
                         league_code, total, len(body["data"]))
         return body["data"]
 
-    def rpc(self, payload: dict[str, Any]) -> Any:
+    def rpc(self, name: str | dict[str, Any], payload: dict[str, Any] | None = None) -> Any:
+        # Preserve the concise fixture-upsert call while supporting quota and result RPCs.
+        if payload is None:
+            rpc_name = "upsert_sportstats_fixture"
+            rpc_payload = name
+        else:
+            rpc_name = str(name)
+            rpc_payload = payload
         response = requests.post(
-            f"{self.supabase_url}/rest/v1/rpc/upsert_sportstats_fixture",
-            headers=self.db_headers, json=payload, timeout=35,
+            f"{self.supabase_url}/rest/v1/rpc/{rpc_name}",
+            headers=self.db_headers, json=rpc_payload, timeout=35,
         )
         if response.status_code >= 300:
-            raise RuntimeError(f"Supabase upsert_sportstats_fixture failed: HTTP {response.status_code}: {response.text[:300]}")
+            raise RuntimeError(f"Supabase RPC {rpc_name} failed: HTTP {response.status_code}: {response.text[:300]}")
         return response.json() if response.content else None
 
     def sync_fixtures(self, days: int = 7) -> int:

@@ -1,6 +1,11 @@
 name: Daily API-Football fixture ID mapping
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "sync_api_football.py"
+      - ".github/workflows/map-api-football-fixtures.yml"
   schedule:
     - cron: "0 16 * * *"
   workflow_dispatch:

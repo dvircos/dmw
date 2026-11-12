@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import requests
-from main import flag_url, hebrew_name
+from main import FLAGS, flag_url, hebrew_name, normalize
 
 API_BASE = "https://api.sportstatsapi.com/api/v1"
 # Confirmed from the completed league-catalogue diagnostic; do not rescan catalogue.
@@ -26,6 +26,13 @@ LEAGUES = (
 SCHEDULED = {"NS", "TBD"}
 PLACEHOLDERS = {"", "YOUR_SPORTSTATS_API_KEY_HERE"}
 log = logging.getLogger("sportstats-sync")
+
+
+def safe_team_flag(name: str) -> str | None:
+    """Do not replace a real existing club badge with the generic unknown flag."""
+    if normalize(name) not in FLAGS:
+        return None
+    return flag_url(name, None)
 
 
 def parse_match(row: dict[str, Any], league: dict[str, str]) -> dict[str, Any] | None:
@@ -133,8 +140,8 @@ class SportStatsSync:
                     "p_api_away_name": away,
                     "p_home_team": hebrew_name(home),
                     "p_away_team": hebrew_name(away),
-                    "p_home_flag": flag_url(home, None),
-                    "p_away_flag": flag_url(away, None),
+                    "p_home_flag": safe_team_flag(home),
+                    "p_away_flag": safe_team_flag(away),
                     "p_match_time": match["kickoff"],
                     "p_round_name": f"{label}|{match['league_name']}",
                 })

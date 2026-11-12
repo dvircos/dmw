@@ -1497,7 +1497,7 @@ function updateNetworkStatus() {
   if (!banner) return;
   const offline = !navigator.onLine;
   banner.classList.toggle("hidden", !offline);
-  banner.textContent = offline ? "אין חיבור לאינטרנט · מוצגים רק נתונים שמורים" : "";
+  banner.textContent = offline ? "אין חיבור לאינטרנט · טעינת נתונים ופעולות אינן זמינות" : "";
 }
 window.addEventListener("offline", updateNetworkStatus);
 window.addEventListener("online", updateNetworkStatus);

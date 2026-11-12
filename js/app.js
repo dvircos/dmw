@@ -441,6 +441,38 @@ function renderBets() {
     pending: historyBets.filter(isPending).length,
     settled: historyBets.filter((bet) => ["won", "lost", "void"].includes(bet.status)).length,
   };
+
+  const settledBets = historyBets.filter((bet) => ["won", "lost", "void"].includes(bet.status));
+  const totalNet = settledBets.reduce((total, bet) => {
+    const stake = Number(bet.bet_amount) || 0;
+    if (bet.status === "won") return total + (Number(bet.potential_payout) || 0) - stake;
+    if (bet.status === "lost") return total - stake;
+    return total;
+  }, 0);
+  const appendSummary = () => {
+    const panel = document.createElement("section");
+    panel.className = "mt-5 mb-4 flex items-center justify-between gap-3 rounded-2xl border border-slate-600/80 bg-[#1b2b40] px-4 py-4 shadow-lg";
+    const label = document.createElement("div");
+    label.className = "min-w-0";
+    const title = document.createElement("p");
+    title.className = "text-sm font-bold text-slate-100";
+    title.textContent = "סיכום ההימורים";
+    const count = document.createElement("p");
+    count.className = "mt-1 text-xs text-slate-400";
+    count.textContent = `${settledBets.length} הימורים הסתיימו`;
+    label.append(title, count);
+    const total = document.createElement("div");
+    total.className = "shrink-0 text-left";
+    const totalLabel = document.createElement("p");
+    totalLabel.className = "text-xs text-slate-400";
+    totalLabel.textContent = totalNet > 0 ? "רווח כולל" : totalNet < 0 ? "הפסד כולל" : "מאזן כולל";
+    const amount = document.createElement("strong");
+    amount.className = `mt-1 block text-xl font-extrabold tabular-nums ${totalNet > 0 ? "text-emerald-300" : totalNet < 0 ? "text-rose-300" : "text-slate-200"}`;
+    amount.textContent = `${totalNet > 0 ? "+" : totalNet < 0 ? "−" : ""}₪${money(Math.abs(totalNet))}`;
+    total.append(totalLabel, amount);
+    panel.append(label, total);
+    root.append(panel);
+  };
   tabs.querySelectorAll("button").forEach((button, index) => {
     const key = filters[index][0];
     if (key === "pending") button.textContent = `פתוחים · ${counts.pending}`;
@@ -452,6 +484,7 @@ function renderBets() {
     placeholder.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-10 text-center text-sm text-mist";
     placeholder.textContent = historyBets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים";
     root.append(placeholder);
+    appendSummary();
     return;
   }
 
@@ -506,29 +539,51 @@ function renderBets() {
     }
 
     const metrics = document.createElement("div");
-    metrics.className = "mt-3 grid grid-cols-2 gap-2 border-t border-slate-700/60 bg-[#152238] px-4 py-3";
+    metrics.className = "mt-3 grid grid-cols-3 items-center gap-2 border-t border-slate-700/60 bg-[#152238] px-4 py-3";
     const stake = document.createElement("div");
     stake.innerHTML = '<span class="block text-[11px] text-slate-400">סכום הימור</span>';
     const stakeValue = document.createElement("strong");
-    stakeValue.className = "mt-0.5 block text-base text-slate-100";
+    stakeValue.className = "mt-0.5 block text-base font-extrabold text-slate-100";
     stakeValue.textContent = `₪${money(bet.bet_amount)}`;
     stake.append(stakeValue);
-    const returnBox = document.createElement("div");
-    returnBox.className = "text-left";
-    returnBox.innerHTML = `<span class="block text-[11px] text-slate-400">${bet.status === "pending" ? "זכייה אפשרית" : bet.status === "won" ? "תשלום בפועל" : bet.status === "void" ? "החזר" : "תשלום"}</span>`;
-    const payout = document.createElement("strong");
-    payout.className = "mt-0.5 block text-base text-gold";
-    payout.textContent = `₪${money(bet.status === "lost" ? 0 : bet.potential_payout)}`;
-    if (bet.status === "lost") payout.className = "mt-0.5 block text-base text-rose-300";
-    if (bet.status === "void") payout.className = "mt-0.5 block text-base text-slate-300";
-    returnBox.append(payout);
-    metrics.append(stake, returnBox);
-    card.append(metrics);
 
-    const odds = document.createElement("p");
-    odds.className = "px-4 pb-3 pt-2 text-xs text-slate-400";
-    odds.textContent = `${combined ? "יחס משולב" : "יחס"} · ${Number(bet.odds).toFixed(2)}`;
-    card.append(odds);
+    const oddsBox = document.createElement("div");
+    oddsBox.className = "text-center";
+    oddsBox.innerHTML = `<span class="block text-[11px] text-slate-400">${combined ? "יחס משולב" : "יחס"}</span>`;
+    const oddsValue = document.createElement("strong");
+    oddsValue.className = "mt-0.5 block text-base font-semibold text-slate-100";
+    oddsValue.textContent = Number(bet.odds).toFixed(2);
+    oddsBox.append(oddsValue);
+
+    const resultBox = document.createElement("div");
+    resultBox.className = "text-left";
+    const resultLabel = document.createElement("span");
+    resultLabel.className = "block text-[11px] text-slate-400";
+    const resultValue = document.createElement("strong");
+    resultValue.className = "mt-0.5 inline-block rounded-xl px-2.5 py-1 text-base font-extrabold tabular-nums";
+    const stakeAmount = Number(bet.bet_amount) || 0;
+    const payoutAmount = Number(bet.potential_payout) || 0;
+    if (bet.status === "won") {
+      const net = payoutAmount - stakeAmount;
+      resultLabel.textContent = "רווח נטו";
+      resultValue.className += net >= 0 ? " bg-emerald-500/20 text-emerald-300" : " bg-rose-500/20 text-rose-300";
+      resultValue.textContent = `${net >= 0 ? "+" : "−"}₪${money(Math.abs(net))}`;
+    } else if (bet.status === "lost") {
+      resultLabel.textContent = "הפסד נטו";
+      resultValue.className += " bg-rose-500/20 text-rose-300";
+      resultValue.textContent = `−₪${money(stakeAmount)}`;
+    } else if (bet.status === "void") {
+      resultLabel.textContent = "החזר";
+      resultValue.className += " bg-slate-500/20 text-slate-300";
+      resultValue.textContent = `₪${money(0)}`;
+    } else {
+      resultLabel.textContent = "רווח אפשרי";
+      resultValue.className += " bg-amber-400/15 text-amber-200";
+      resultValue.textContent = `+₪${money(Math.max(0, payoutAmount - stakeAmount))}`;
+    }
+    resultBox.append(resultLabel, resultValue);
+    metrics.append(stake, oddsBox, resultBox);
+    card.append(metrics);
 
     if (bet.status === "pending") {
       const editable = !bet.market_id && canEdit(bet);
@@ -559,6 +614,8 @@ function renderBets() {
     }
     root.append(card);
   });
+
+  appendSummary();
 }
 
 function renderBoard() {

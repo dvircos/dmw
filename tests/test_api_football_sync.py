@@ -1,5 +1,7 @@
 import unittest
 
+# Regression tests for API-Football status handling and request batching.
+
 from sync_api_football import chunks, parse_api_result
 
 

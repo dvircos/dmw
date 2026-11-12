@@ -118,7 +118,13 @@ function empty(parent, text) {
 }
 
 function showTab(tab) {
-  if (state.tab !== tab && state.selected) closeSheet();
+  if (state.tab !== tab) {
+    if (state.selected) closeSheet();
+    if (state.slipOpen) {
+      state.slipOpen = false;
+      renderSlip();
+    }
+  }
   state.tab = tab;
   if (tab === "games") state.gameView = "active";
   if (tab === "archive") state.gameView = "archive";

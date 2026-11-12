@@ -95,6 +95,21 @@ def main() -> int:
     client = FootballClient(api_key, db)
     now = datetime.now(timezone.utc)
     rows = load_league(client, db, 5, "nations", now)
+    if client.stopped:
+        error = client.last_error or {"message": "provider stopped the request"}
+        try:
+            db.rpc("log_api_request", {
+                "p_endpoint": "/football-get-all-matches-by-league/sync-aborted",
+                "p_params": {"provider_error": error},
+                "p_status": int(error.get("http_status") or 503) if isinstance(error, dict) else 503,
+                "p_purpose": "existing-nations-only",
+            })
+        except RuntimeError:
+            pass
+        raise RuntimeError(f"RapidAPI could not provide Nations League data: {error}")
+    if not rows:
+        raise RuntimeError("RapidAPI returned no Nations League fixtures; refusing to report a successful sync.")
+
     by_fixture: dict[int, list[dict]] = {}
     for row in rows:
         try:

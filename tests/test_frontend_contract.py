@@ -39,21 +39,21 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('if (isNavigation)', sw)
         self.assertNotIn('hit || caches.match("./index.html")', sw)
 
-    def test_result_sync_is_scheduled_every_30_minutes(self):
+    def test_result_sync_is_scheduled_every_20_minutes(self):
         workflow = (ROOT / ".github" / "workflows" / "sportstats-results.yml").read_text(encoding="utf-8")
-        self.assertIn('cron: "*/30 * * * *"', workflow)
+        self.assertIn('cron: "*/20 * * * *"', workflow)
 
-    def test_result_sync_keeps_polling_unconfirmed_matches_until_final_confirmation(self):
+    def test_result_sync_polls_started_unconfirmed_games_across_midnight(self):
         sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
-        self.assertIn('local_date = now.astimezone(israel).date()', sync)
-        self.assertIn('day_start = datetime.combine(local_date, time.min, tzinfo=israel)', sync)
-        self.assertIn('day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel)', sync)
-        self.assertIn('active_window_end = min(day_end, now - timedelta(minutes=30))', sync)
-        self.assertIn('"match_time": f"gt.{day_start.isoformat()}"', sync)
-        self.assertIn('"and": f"(match_time.lte.{active_window_end.isoformat()})"', sync)
-        self.assertIn('result_confirmed": "eq.false"', sync)
-        self.assertIn('israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date().isoformat()', sync)
+        self.assertIn('"match_time": f"lte.{now.isoformat()}"', sync)
+        self.assertIn('"status": "in.(upcoming,live)"', sync)
+        self.assertIn('"result_confirmed": "eq.false"', sync)
+        self.assertNotIn("active_window_end", sync)
+        self.assertNotIn("day_start = datetime.combine", sync)
         self.assertIn("league_codes = sorted({str(g[\"sportstats_league_code\"]) for g in games", sync)
+        self.assertIn("start = min(kickoff_dates).isoformat()", sync)
+        self.assertIn("end = israel_today.isoformat()", sync)
+        self.assertIn("rows = self.fetch_league(league_code, start, end)", sync)
 
 
     def test_winner_odds_import_is_admin_guarded(self):

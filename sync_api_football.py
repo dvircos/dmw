@@ -9,6 +9,7 @@ from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import requests
+from main import flag_url, hebrew_name
 
 API_BASE = "https://v3.football.api-sports.io"
 ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
@@ -141,10 +142,10 @@ class Sync:
                     "p_api_fixture_id": int(fixture["id"]),
                     "p_api_home_name": self.team_label(home),
                     "p_api_away_name": self.team_label(away),
-                    "p_home_team": self.team_label(home),
-                    "p_away_team": self.team_label(away),
-                    "p_home_flag": home.get("logo"),
-                    "p_away_flag": away.get("logo"),
+                    "p_home_team": hebrew_name(self.team_label(home)),
+                    "p_away_team": hebrew_name(self.team_label(away)),
+                    "p_home_flag": flag_url(self.team_label(home), home.get("logo")),
+                    "p_away_flag": flag_url(self.team_label(away), away.get("logo")),
                     "p_match_time": fixture["date"],
                     "p_round_name": f"{code}|{league.get('round') or league.get('name') or ''}",
                 })

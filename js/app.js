@@ -1141,6 +1141,21 @@ async function refreshAdmin() {
       const actionDetails = document.createElement("details"); actionDetails.className = "mt-3 rounded-xl border border-slate-700/60 bg-ink/30 p-2";
       const actionSummary = document.createElement("summary"); actionSummary.className = "cursor-pointer list-none px-2 py-2 text-sm font-bold text-slate-200"; actionSummary.textContent = "פעולות משתמש ▾";
       const actions = document.createElement("div"); actions.className = "mt-2 grid grid-cols-2 gap-2";
+      const rename = document.createElement("button"); rename.className = "rounded-xl border border-gold/50 px-3 py-2 text-sm font-semibold text-gold"; rename.textContent = "שינוי שם משתמש";
+      rename.addEventListener("click", async () => {
+        const nextName = prompt(`שם משתמש חדש עבור ${user.username}:`, user.username);
+        if (nextName === null) return;
+        const username = nextName.trim();
+        if (username === user.username) return;
+        rename.disabled = true;
+        const result = await supabase.rpc("admin_update_username", { p_user_id: user.id, p_username: username });
+        rename.disabled = false;
+        if (result.error) { toast(cleanError(result.error), "error"); return; }
+        toast("שם המשתמש עודכן");
+        await refreshAdmin();
+        await refreshBoard();
+        await refreshProfile();
+      });
       const reset = document.createElement("button"); reset.className = "rounded-xl bg-gold px-3 py-2 text-sm font-bold text-ink"; reset.textContent = "איפוס ל־1,000 ₪";
       reset.addEventListener("click", async () => { if (!confirm(`לאפס את היתרה של ${user.username} ל־1,000 ₪? ההימורים הפתוחים יישארו ללא שינוי.`)) return; const r=await supabase.rpc("admin_set_balance",{p_user_id:user.id,p_balance:1000,p_reason:"reset_to_1000"}); if(r.error) toast(cleanError(r.error),"error"); else { toast("היתרה אופסה; ההימורים נשארו ללא שינוי"); refreshAdmin(); refreshBoard(); } });
       const manual = document.createElement("button"); manual.className = "rounded-xl border border-slate-600 px-3 py-2 text-sm"; manual.textContent = "קביעת יתרה";
@@ -1149,7 +1164,7 @@ async function refreshAdmin() {
       history.addEventListener("click", async () => { const r=await supabase.rpc("admin_user_bets",{p_user_id:user.id}); if(r.error){toast(cleanError(r.error),"error");return;} const lines=(r.data||[]).slice(0,12).map(b=>`#${b.id} · ₪${money(b.bet_amount)} · ${b.status} · יחס ${b.odds}`).join("\n"); alert(lines||"אין הימורים למשתמש זה"); });
       const del = document.createElement("button"); del.className = "rounded-xl border border-rose-500/50 px-3 py-2 text-sm text-rose-300"; del.textContent = "מחיקת משתמש";
       del.addEventListener("click", async () => { if(!confirm(`לסמן את ${user.username} כמחוק? היסטוריית ההימורים תישמר והוא יוסתר מהטבלה.`))return; const r=await supabase.rpc("admin_soft_delete_user",{p_user_id:user.id}); if(r.error)toast(cleanError(r.error),"error");else{toast("המשתמש סומן כמחוק וההיסטוריה נשמרה");refreshAdmin();refreshBoard();} });
-      actions.append(reset,manual,history,del); actionDetails.append(actionSummary,actions); card.append(actionDetails);
+      actions.append(rename,reset,manual,history,del); actionDetails.append(actionSummary,actions); card.append(actionDetails);
     }
     root.append(card);
   });

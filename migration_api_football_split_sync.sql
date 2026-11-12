@@ -216,8 +216,35 @@ begin
 end;
 $$;
 
+create or replace function public.sync_api_football_live(
+  p_api_fixture_id bigint,
+  p_home_score integer,
+  p_away_score integer
+) returns jsonb
+language plpgsql security definer set search_path=public
+as $
+declare v_game public.games%rowtype;
+begin
+  if p_home_score is not null and p_home_score < 0 or p_away_score is not null and p_away_score < 0 then
+    raise exception 'Invalid live score';
+  end if;
+  select * into v_game from public.games
+  where api_football_fixture_id=p_api_fixture_id for update;
+  if not found then raise exception 'API-Football fixture is not mapped to an app game'; end if;
+  if coalesce(v_game.result_confirmed,false) or v_game.status in ('finished','cancelled') then
+    return jsonb_build_object('fixture_id',p_api_fixture_id,'game_id',v_game.id,'status',v_game.status,'ignored',true);
+  end if;
+  update public.games set status='live',
+    home_score=coalesce(p_home_score,home_score),
+    away_score=coalesce(p_away_score,away_score)
+  where id=v_game.id returning * into v_game;
+  return jsonb_build_object('fixture_id',p_api_fixture_id,'game_id',v_game.id,
+    'status',v_game.status,'home_score',v_game.home_score,'away_score',v_game.away_score);
+end;
+$;
+
 revoke all on function public.upsert_api_football_fixture(bigint,text,text,text,text,text,text,timestamptz,text) from public,anon,authenticated;
-revoke all on function public.sync_api_football_result(bigint,text,integer,integer) from public,anon,authenticated;
+revoke all on function public.sync_api_football_result(bigint,text,integer,integer) from public,anon,authenticated;\nrevoke all on function public.sync_api_football_live(bigint,integer,integer) from public,anon,authenticated;
 grant execute on function public.upsert_api_football_fixture(bigint,text,text,text,text,text,text,timestamptz,text) to service_role;
-grant execute on function public.sync_api_football_result(bigint,text,integer,integer) to service_role;
+grant execute on function public.sync_api_football_result(bigint,text,integer,integer) to service_role;\ngrant execute on function public.sync_api_football_live(bigint,integer,integer) to service_role;
 notify pgrst, 'reload schema';

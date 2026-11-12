@@ -727,50 +727,49 @@ function renderBoard() {
     root.append(placeholder);
     return;
   }
-  const podium = state.board.length >= 3 ? document.createElement("div") : null;
-  if (podium) {
-    podium.className = "mb-4 grid grid-cols-3 gap-2";
-    const medals = ["🥇", "🥈", "🥉"];
-    state.board.slice(0, 3).forEach((row, index) => {
-      const mine = row.id === state.user?.id;
-      const card = document.createElement("div");
-      card.className = `min-w-0 rounded-2xl border px-2 py-3 text-center ${mine ? "border-gold bg-gold/15" : "border-slate-700/60 bg-panel"}`;
-      const medal = document.createElement("div");
-      medal.className = "text-2xl";
-      medal.textContent = medals[index];
-      const name = document.createElement("p");
-      name.className = "mt-1 truncate text-xs font-extrabold";
-      name.textContent = row.username;
-      const amount = document.createElement("p");
-      amount.className = "mt-1 truncate text-xs font-bold text-gold";
-      amount.dir = "ltr";
-      amount.textContent = `₪${money(row.balance)}`;
-      card.append(medal, name, amount);
-      podium.append(card);
-    });
-    root.append(podium);
-  }
-  state.board.slice(podium ? 3 : 0).forEach((row, offset) => {
-    const index = offset + (podium ? 3 : 0);
-    const item = document.createElement("div");
+
+  const table = document.createElement("div");
+  table.className = "overflow-hidden rounded-2xl border border-slate-700/50 bg-panel shadow-sm";
+  const headerRow = document.createElement("div");
+  headerRow.className = "grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/40 bg-ink/40 px-3 py-3 text-xs font-bold text-slate-400";
+  const rankHeading = document.createElement("span");
+  rankHeading.textContent = "#";
+  const userHeading = document.createElement("span");
+  userHeading.textContent = "משתמש";
+  const profitHeading = document.createElement("span");
+  profitHeading.className = "text-left";
+  profitHeading.textContent = "רווח / הפסד";
+  headerRow.append(rankHeading, userHeading, profitHeading);
+  table.append(headerRow);
+
+  state.board.forEach((row, index) => {
     const mine = row.id === state.user?.id;
-    item.className = `mb-2 flex items-center justify-between rounded-2xl border px-4 py-3 ${mine ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/40 bg-panel"}`;
-    const who = document.createElement("div");
-    who.className = "flex min-w-0 items-center gap-3";
-    const place = document.createElement("span");
-    place.className = "w-7 shrink-0 text-center text-sm font-extrabold text-gold";
-    place.textContent = String(index + 1);
-    const name = document.createElement("span");
-    name.className = "truncate text-sm font-medium";
-    name.textContent = row.username + (mine ? " · אתה" : "");
-    who.append(place, name);
-    const balance = document.createElement("span");
-    balance.className = "shrink-0 text-sm font-bold";
-    balance.dir = "ltr";
-    balance.textContent = `₪${money(row.balance)}`;
-    item.append(who, balance);
-    root.append(item);
+    const net = Number(row.balance || 0) - 1000;
+    const line = document.createElement("div");
+    line.className = `grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/30 px-3 py-3 last:border-b-0 ${mine ? "bg-gold/10" : ""}`;
+
+    const rank = document.createElement("span");
+    rank.className = "text-center text-sm font-bold text-slate-400";
+    rank.textContent = String(index + 1);
+
+    const username = document.createElement("span");
+    username.className = "min-w-0 truncate text-sm font-semibold text-slate-100";
+    username.textContent = row.username + (mine ? " · אתה" : "");
+
+    const result = document.createElement("strong");
+    result.className = `whitespace-nowrap text-left text-sm font-extrabold tabular-nums ${net > 0 ? "text-emerald-400" : net < 0 ? "text-rose-400" : "text-slate-300"}`;
+    result.dir = "ltr";
+    result.textContent = `${net > 0 ? "+" : net < 0 ? "−" : ""}₪${money(Math.abs(net))}`;
+
+    line.append(rank, username, result);
+    table.append(line);
   });
+  root.append(table);
+
+  const note = document.createElement("p");
+  note.className = "mt-2 text-[11px] text-slate-400";
+  note.textContent = "הרווח או ההפסד מחושבים ביחס ליתרת הפתיחה של 1,000 ₪.";
+  root.append(note);
 }
 
 function render() {

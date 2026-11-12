@@ -9,7 +9,7 @@ import argparse
 import logging
 import os
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo
 from typing import Any
 
@@ -252,16 +252,19 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
-        # A league is polled only while it has a match whose kickoff was
-        # within the last two hours. The scheduled workflow runs every 30 min.
-        window_start = now - timedelta(hours=2)
+        # Use the Israel calendar day: only leagues with an unconfirmed game
+        # scheduled today are eligible for a provider request.
+        israel = ZoneInfo("Asia/Jerusalem")
+        local_date = now.astimezone(israel).date()
+        day_start = datetime.combine(local_date, time.min, tzinfo=israel).astimezone(timezone.utc)
+        day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel).astimezone(timezone.utc)
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"gte.{window_start.isoformat()}",
-            "and": f"(match_time.lt.{now.isoformat()})",
+            "match_time": f"gte.{day_start.isoformat()}",
+            "and": f"(match_time.lt.{day_end.isoformat()})",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",
             "limit": "500",
@@ -311,8 +314,8 @@ class SportStatsSync:
             log.info("No supported SportStatsAPI leagues among pending games; 0 provider requests.")
             return 0
 
-        start = (now - timedelta(hours=2)).date().isoformat()
-        end = now.date().isoformat()
+        israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date().isoformat()
+        start = end = israel_today
         by_code = {str(g["sportstats_match_code"]): g for g in games}
         confirmed = 0
 

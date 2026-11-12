@@ -36,6 +36,7 @@ declare
   v_game public.games%rowtype;
   v_created boolean := false;
   v_matches integer;
+  v_matched boolean := false;
 begin
   if coalesce(trim(p_match_code),'') = ''
      or coalesce(trim(p_league_code),'') = ''
@@ -78,9 +79,10 @@ begin
         and g.sportstats_match_code is null
       limit 1
       for update;
+      v_matched := found;
     end if;
 
-    if found then
+    if v_matched then
       update public.games
       set sportstats_match_code = p_match_code,
           sportstats_league_code = p_league_code,

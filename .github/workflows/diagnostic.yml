@@ -40,10 +40,10 @@ jobs:
           print("LEAGUE_COUNT", len(leagues))
           targets = {
               "EPL": lambda x: str(x.get("name", "")).casefold() == "england: premier league",
-              "LA_LIGA": lambda x: str(x.get("name", "")).casefold() == "spain: laliga",
-              "ISRAEL": lambda x: str(x.get("name", "")).casefold() == "israel: ligat ha'al",
-              "NATIONS_LEAGUE": lambda x: str(x.get("name", "")).casefold() == "europe: uefa nations league - league b",
-              "CHAMPIONS_LEAGUE": lambda x: str(x.get("name", "")).casefold() == "europe: champions league",
+              "LA_LIGA": lambda x: str(x.get("name", "")).casefold() and "laliga" in str(x.get("name", "")).casefold(),
+              "ISRAEL": lambda x: str(x.get("name", "")).casefold() and "ligat ha'al" in str(x.get("name", "")).casefold(),
+              "NATIONS_LEAGUE": lambda x: str(x.get("name", "")).casefold() and "nations league" in str(x.get("name", "")).casefold(),
+              "CHAMPIONS_LEAGUE": lambda x: str(x.get("name", "")).casefold() and "champions league" in str(x.get("name", "")).casefold(),
           }
           selected = {}
           for key, predicate in targets.items():

@@ -43,13 +43,14 @@ class FrontendContractTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "sportstats-results.yml").read_text(encoding="utf-8")
         self.assertIn('cron: "*/30 * * * *"', workflow)
 
-    def test_result_sync_only_checks_unconfirmed_games_scheduled_today_in_israel(self):
+    def test_result_sync_only_checks_todays_games_within_two_hours_after_kickoff(self):
         sync = (ROOT / "sync_sportstats.py").read_text(encoding="utf-8")
         self.assertIn('local_date = now.astimezone(israel).date()', sync)
         self.assertIn('day_start = datetime.combine(local_date, time.min, tzinfo=israel)', sync)
         self.assertIn('day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel)', sync)
-        self.assertIn('"match_time": f"gte.{day_start.isoformat()}"', sync)
-        self.assertIn('"and": f"(match_time.lt.{day_end.isoformat()})"', sync)
+        self.assertIn('active_window_start = max(day_start, now - timedelta(hours=2))', sync)
+        self.assertIn('"match_time": f"gte.{active_window_start.isoformat()}"', sync)
+        self.assertIn('"and": f"(match_time.lt.{min(day_end, now).isoformat()})"', sync)
         self.assertIn('israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date().isoformat()', sync)
         self.assertIn("league_codes = sorted({str(g[\"sportstats_league_code\"]) for g in games", sync)
 

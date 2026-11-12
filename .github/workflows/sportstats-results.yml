@@ -1,10 +1,15 @@
 name: SportStatsAPI result sync
 
 on:
+  # Run once immediately when the result-sync logic or this workflow changes.
+  push:
+    branches: [main]
+    paths:
+      - "sync_sportstats.py"
+      - ".github/workflows/sportstats-results.yml"
   # Allow a one-off manual run without changing the recurring schedule.
   workflow_dispatch:
-  # Check every 30 minutes. The script calls SportStatsAPI only for leagues
-  # with an unconfirmed fixture today in one of the five post-kickoff half-hour windows.
+  # Check every 30 minutes; pending matches remain eligible until FT is confirmed.
   schedule:
     - cron: "*/30 * * * *"
 

@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;800&display=swap" rel="stylesheet" />
-    <script src="https://cdn.tailwindcss.com" defer></script>
+    <script src="https://cdn.tailwindcss.com" defer onload="document.documentElement.classList.add('tw-ready'); window.dispatchEvent(new Event('dmw:styles-ready'))"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -30,6 +30,8 @@
       };
     </script>
     <style>
+      html:not(.tw-ready) #auth-view, html:not(.tw-ready) #app-view { visibility:hidden !important; }
+      html:not(.tw-ready) #splash-screen { opacity:1 !important; visibility:visible !important; }
       body {
         font-family: Rubik, sans-serif;
         color: #f8fafc;

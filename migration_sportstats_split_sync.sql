@@ -38,6 +38,9 @@ declare
   v_matches integer;
   v_matched boolean := false;
 begin
+  -- Serialize concurrent imports of the same provider match code.
+  perform pg_advisory_xact_lock(hashtextextended(p_match_code, 0));
+
   if coalesce(trim(p_match_code),'') = ''
      or coalesce(trim(p_league_code),'') = ''
      or coalesce(trim(p_home_team_code),'') = ''

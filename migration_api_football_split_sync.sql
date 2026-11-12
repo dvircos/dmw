@@ -249,7 +249,7 @@ begin
   return jsonb_build_object('fixture_id',p_api_fixture_id,'game_id',v_game.id,
     'status',v_game.status,'home_score',v_game.home_score,'away_score',v_game.away_score);
 end;
-$;
+$$;
 
 revoke all on function public.upsert_api_football_fixture(bigint,text,text,text,text,text,text,timestamptz,text) from public,anon,authenticated;
 revoke all on function public.sync_api_football_result(bigint,text,integer,integer) from public,anon,authenticated;

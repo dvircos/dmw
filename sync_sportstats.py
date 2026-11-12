@@ -252,19 +252,21 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
-        # Use the Israel calendar day: only leagues with an unconfirmed game
-        # scheduled today are eligible for a provider request.
+        # Only today's fixtures qualify, and only after kickoff (within 2 hours).
         israel = ZoneInfo("Asia/Jerusalem")
         local_date = now.astimezone(israel).date()
         day_start = datetime.combine(local_date, time.min, tzinfo=israel).astimezone(timezone.utc)
         day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel).astimezone(timezone.utc)
+        # A match becomes eligible only after its scheduled kickoff, and only
+        # for the following two hours. Still constrain it to today's fixtures.
+        active_window_start = max(day_start, now - timedelta(hours=2))
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"gte.{day_start.isoformat()}",
-            "and": f"(match_time.lt.{day_end.isoformat()})",
+            "match_time": f"gte.{active_window_start.isoformat()}",
+            "and": f"(match_time.lt.{min(day_end, now).isoformat()})",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",
             "limit": "500",
@@ -304,7 +306,7 @@ class SportStatsSync:
         now = datetime.now(timezone.utc)
         games = self.fetch_unconfirmed_games(now)
         if not games:
-            log.info("No unconfirmed SportStatsAPI-linked games kicked off in the last 2 hours; 0 provider requests.")
+            log.info("No unconfirmed SportStatsAPI-linked games from today are within the 2-hour post-kickoff window; 0 provider requests.")
             return 0
 
         league_codes = sorted({str(g["sportstats_league_code"]) for g in games if g.get("sportstats_league_code")})

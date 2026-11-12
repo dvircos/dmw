@@ -252,25 +252,23 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
-        # Only today's fixtures qualify; poll on the five half-hour checks after kickoff.
+        # Keep checking every unconfirmed fixture from today until it is
+        # explicitly confirmed FT. GitHub scheduled runs can be delayed; a
+        # hard 3-hour lower bound could permanently drop a match before the
+        # provider publishes its final status.
         israel = ZoneInfo("Asia/Jerusalem")
         local_date = now.astimezone(israel).date()
         day_start = datetime.combine(local_date, time.min, tzinfo=israel).astimezone(timezone.utc)
         day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel).astimezone(timezone.utc)
-        # Five scheduled checks: kickoff+30m, +60m, +90m, +120m, +150m.
-        # With a global half-hour cron, the rolling interval [now-3h, now-30m]
-        # selects exactly those five checks for each fixture, regardless of
-        # whether its kickoff falls on :00, :15, :30 or :45.
-        active_window_start = max(day_start, now - timedelta(hours=3))
         active_window_end = min(day_end, now - timedelta(minutes=30))
-        if active_window_end <= active_window_start:
+        if active_window_end <= day_start:
             return []
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"gt.{active_window_start.isoformat()}",
+            "match_time": f"gt.{day_start.isoformat()}",
             "and": f"(match_time.lte.{active_window_end.isoformat()})",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",

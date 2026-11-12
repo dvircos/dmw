@@ -138,19 +138,16 @@ class Sync:
                 if not fixture.get("id") or not fixture.get("date") or not home.get("name") or not away.get("name"):
                     continue
                 league = item.get("league") or {}
-                result = self.rpc("upsert_api_football_fixture", {
+                result = self.rpc("link_api_football_fixture", {
                     "p_api_fixture_id": int(fixture["id"]),
+                    "p_league_code": code,
                     "p_api_home_name": self.team_label(home),
                     "p_api_away_name": self.team_label(away),
-                    "p_home_team": hebrew_name(self.team_label(home)),
-                    "p_away_team": hebrew_name(self.team_label(away)),
-                    "p_home_flag": flag_url(self.team_label(home), home.get("logo")),
-                    "p_away_flag": flag_url(self.team_label(away), away.get("logo")),
                     "p_match_time": fixture["date"],
-                    "p_round_name": f"{code}|{league.get('round') or league.get('name') or ''}",
                 })
-                inserted_or_updated += 1
-                log.info("Weekly fixture synced: %s (%s)", fixture["id"], result)
+                if result and result.get("linked"):
+                    inserted_or_updated += 1
+                log.info("Existing game fixture link: %s (%s)", fixture["id"], result)
         log.info("Weekly catalogue complete: %s fixtures; %s API requests", inserted_or_updated, self.calls)
 
     def sync_results(self):

@@ -863,6 +863,15 @@ async function enterApp(session) {
   state.isAdmin = !adminCheck.error && adminCheck.data === true;
   $("admin-nav").classList.toggle("hidden", !state.isAdmin);
   $("admin-nav").classList.toggle("flex", state.isAdmin);
+  const inviteUrl = new URL(location.href);
+  const inviteCode = inviteUrl.searchParams.get("join");
+  if (inviteCode) {
+    const joined = await supabase.rpc("groups_join", { p_invite_code: inviteCode, p_group_id: null });
+    inviteUrl.searchParams.delete("join");
+    history.replaceState({}, "", inviteUrl.toString());
+    if (joined.error) toast(cleanError(joined.error), "error");
+    else toast("הצטרפת לקבוצה בהצלחה");
+  }
   await refreshAll();
   subscribe();
   if (!state.clock) state.clock = setInterval(() => { if (state.tab === "games") renderGames(); }, 30000);

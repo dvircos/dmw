@@ -717,4 +717,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    log.error("This legacy combined sync is disabled. Use sync_api_football.py fixtures or results.")
+    sys.exit(2)

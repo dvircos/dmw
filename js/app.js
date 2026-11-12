@@ -11,6 +11,7 @@ const state = {
   balance: 0,
   games: [],
   bets: [],
+  betsFilter: "pending",
   board: [],
   selected: null,
   submitting: false,
@@ -231,68 +232,146 @@ function teamColumn(url, name) {
 
 function renderBets() {
   const root = $("view-bets");
-  if (!state.bets.length) {
-    empty(root, "עדיין אין הימורים");
+  root.replaceChildren();
+
+  const filters = [
+    ["pending", "פתוחים"],
+    ["settled", "הסתיימו"],
+    ["all", "הכל"],
+  ];
+  const toolbar = document.createElement("div");
+  toolbar.className = "mb-4 rounded-2xl border border-slate-700/60 bg-[#17243a] p-2";
+  const tabs = document.createElement("div");
+  tabs.className = "grid grid-cols-3 gap-1";
+  filters.forEach(([key, label]) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = state.betsFilter === key
+      ? "rounded-xl bg-gold px-2 py-2.5 text-sm font-extrabold text-ink shadow"
+      : "rounded-xl px-2 py-2.5 text-sm font-medium text-slate-300";
+    button.textContent = label;
+    button.addEventListener("click", () => {
+      state.betsFilter = key;
+      renderBets();
+    });
+    tabs.append(button);
+  });
+  toolbar.append(tabs);
+  root.append(toolbar);
+
+  const isPending = (bet) => bet.status === "pending";
+  const visible = state.bets.filter((bet) => state.betsFilter === "all"
+    || (state.betsFilter === "pending" ? isPending(bet) : !isPending(bet)));
+  const counts = {
+    pending: state.bets.filter(isPending).length,
+    settled: state.bets.filter((bet) => !isPending(bet)).length,
+  };
+  tabs.querySelectorAll("button").forEach((button, index) => {
+    const key = filters[index][0];
+    if (key === "pending") button.textContent = `פתוחים · ${counts.pending}`;
+    if (key === "settled") button.textContent = `הסתיימו · ${counts.settled}`;
+  });
+
+  if (!visible.length) {
+    empty(root, state.bets.length ? "אין הימורים בקטגוריה הזו" : "עדיין אין הימורים");
     return;
   }
-  root.replaceChildren();
-  state.bets.forEach((bet) => {
+
+  visible.forEach((bet) => {
     const legs = slipLegs(bet);
+    const combined = legs.length > 1;
     const game = legs[0]?.games || bet.games || {};
     const card = document.createElement("article");
-    card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
+    card.className = "bet-history-card mb-3 overflow-hidden rounded-2xl border border-slate-700/70 bg-[#1b2940] shadow-lg";
+
+    const top = document.createElement("div");
+    top.className = "flex items-start justify-between gap-3 px-4 pt-4";
+    const heading = document.createElement("div");
+    heading.className = "min-w-0";
     const title = document.createElement("p");
-    title.className = "font-bold";
-    title.textContent = legs.length > 1
-      ? `טופס משולב · ${legs.length} משחקים`
-      : `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
-    card.append(title);
-    if (legs.length > 1) {
-      legs.forEach((leg) => {
-        const row = document.createElement("p");
-        row.className = "mt-1 text-sm text-slate-300";
-        const match = leg.games || {};
-        const legStatus = leg.status ? ` · ${BET_STATUS[leg.status] || leg.status}` : "";
-        row.textContent = `${match.home_team || "משחק"} נגד ${match.away_team || ""} · ${SELECTION[leg.bet_selection] || leg.bet_selection} · ${Number(leg.odds).toFixed(2)}${legStatus}`;
-        card.append(row);
-      });
-    }
-    const meta = document.createElement("p");
-    meta.className = "mt-1 text-sm text-slate-300";
-    meta.textContent = legs.length > 1
-      ? `יחס משולב ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`
-      : `${when(game.match_time)} · ${SELECTION[bet.bet_selection || legs[0]?.bet_selection] || ""} · יחס ${Number(bet.odds).toFixed(2)} · סכום ₪${money(bet.bet_amount)}`;
-    const foot = document.createElement("div");
-    foot.className = "mt-2 flex items-center justify-between text-sm";
-    const payout = document.createElement("span");
-    payout.dir = "ltr";
-    payout.textContent = `₪${money(bet.potential_payout)}`;
+    title.className = "font-bold leading-6 text-slate-50";
+    title.textContent = combined ? `טופס משולב · ${legs.length} משחקים` : `${game.home_team || "משחק"} נגד ${game.away_team || ""}`;
+    const sub = document.createElement("p");
+    sub.className = "mt-1 text-xs text-slate-400";
+    sub.textContent = combined ? "מספר משחקים בטופס אחד" : when(game.match_time);
+    heading.append(title, sub);
+
     const status = document.createElement("span");
-    status.className = bet.status === "won" ? "font-bold text-mint" : bet.status === "lost" || bet.status === "cancelled" ? "text-rose-300" : "text-gold";
+    status.className = `shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${bet.status === "won" ? "bg-emerald-400/15 text-emerald-300" : bet.status === "lost" || bet.status === "cancelled" ? "bg-rose-400/15 text-rose-300" : "bg-amber-300/15 text-amber-200"}`;
     status.textContent = BET_STATUS[bet.status] || bet.status;
-    foot.append(payout, status);
-    card.append(meta, foot);
+    top.append(heading, status);
+    card.append(top);
+
+    if (combined) {
+      const details = document.createElement("details");
+      details.className = "bet-legs-details mx-3 mt-3 rounded-xl border border-slate-600/50 bg-[#111d31]";
+      const summary = document.createElement("summary");
+      summary.className = "cursor-pointer list-none px-3 py-3 text-sm font-semibold text-slate-200";
+      summary.textContent = "הצגת משחקי הטופס";
+      const list = document.createElement("div");
+      list.className = "space-y-2 border-t border-slate-700/70 px-3 py-3";
+      legs.forEach((leg) => {
+        const match = leg.games || {};
+        const row = document.createElement("div");
+        row.className = "flex items-center justify-between gap-2 text-sm";
+        const name = document.createElement("span");
+        name.className = "min-w-0 text-slate-200";
+        name.textContent = `${match.home_team || "משחק"} – ${match.away_team || ""}`;
+        const pick = document.createElement("span");
+        pick.className = "shrink-0 text-xs text-slate-400";
+        pick.textContent = `${SELECTION[leg.bet_selection] || leg.bet_selection} · ${Number(leg.odds).toFixed(2)}`;
+        row.append(name, pick);
+        list.append(row);
+      });
+      details.append(summary, list);
+      card.append(details);
+    }
+
+    const metrics = document.createElement("div");
+    metrics.className = "mt-3 grid grid-cols-2 gap-2 border-t border-slate-700/60 bg-[#152238] px-4 py-3";
+    const stake = document.createElement("div");
+    stake.innerHTML = '<span class="block text-[11px] text-slate-400">סכום הימור</span>';
+    const stakeValue = document.createElement("strong");
+    stakeValue.className = "mt-0.5 block text-base text-slate-100";
+    stakeValue.textContent = `₪${money(bet.bet_amount)}`;
+    stake.append(stakeValue);
+    const returnBox = document.createElement("div");
+    returnBox.className = "text-left";
+    returnBox.innerHTML = '<span class="block text-[11px] text-slate-400">זכייה אפשרית</span>';
+    const payout = document.createElement("strong");
+    payout.className = "mt-0.5 block text-base text-gold";
+    payout.textContent = `₪${money(bet.potential_payout)}`;
+    returnBox.append(payout);
+    metrics.append(stake, returnBox);
+    card.append(metrics);
+
+    const odds = document.createElement("p");
+    odds.className = "px-4 pb-3 pt-2 text-xs text-slate-400";
+    odds.textContent = `${combined ? "יחס משולב" : "יחס"} · ${Number(bet.odds).toFixed(2)}`;
+    card.append(odds);
+
     if (bet.status === "pending") {
       const editable = canEdit(bet);
       const cancellable = canCancel(bet);
       const actions = document.createElement("div");
-      actions.className = legs.length > 1 ? "mt-3" : "mt-3 grid grid-cols-2 gap-2";
-      if (legs.length === 1) {
+      actions.className = "grid grid-cols-2 gap-2 px-3 pb-3";
+      if (!combined) {
         const edit = document.createElement("button");
         edit.type = "button";
-        edit.className = "rounded-2xl border border-white/10 py-2 text-sm font-bold disabled:opacity-40";
+        edit.className = "rounded-xl border border-slate-500/60 py-2.5 text-sm font-bold text-slate-100 disabled:opacity-40";
         edit.textContent = editable ? "עריכת הימור" : "ההימור נעול";
         edit.disabled = !editable;
-        if (editable) {
-          edit.addEventListener("click", () => openSheet(game, bet.bet_selection || legs[0].bet_selection, bet.odds, bet));
-        }
+        if (editable) edit.addEventListener("click", () => openSheet(game, bet.bet_selection || legs[0].bet_selection, bet.odds, bet));
         actions.append(edit);
+      } else {
+        const spacer = document.createElement("span");
+        actions.append(spacer);
       }
       if (cancellable) {
         const cancel = document.createElement("button");
         cancel.type = "button";
-        cancel.className = "w-full rounded-2xl border border-rose-400/40 py-2 text-sm font-bold text-rose-300";
-        cancel.textContent = "בטל הימור";
+        cancel.className = "rounded-xl border border-rose-400/40 py-2.5 text-sm font-bold text-rose-300";
+        cancel.textContent = "ביטול הימור";
         cancel.addEventListener("click", () => cancelBet(bet));
         actions.append(cancel);
       }

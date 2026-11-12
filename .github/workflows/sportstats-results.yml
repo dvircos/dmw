@@ -1,6 +1,8 @@
 name: SportStatsAPI result sync
 
 on:
+  # Allow a one-off manual run without changing the recurring schedule.
+  workflow_dispatch:
   # Check every 30 minutes. The script calls SportStatsAPI only for leagues
   # with an unconfirmed fixture today in one of the five post-kickoff half-hour windows.
   schedule:

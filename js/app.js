@@ -942,6 +942,10 @@ function subscribe() {
       clearTimeout(gameTimer);
       gameTimer = setTimeout(refreshGames, 250);
     })
+    .on("postgres_changes", { event: "*", schema: "public", table: "winner_markets" }, () => {
+      clearTimeout(gameTimer);
+      gameTimer = setTimeout(refreshGames, 250);
+    })
     .on("postgres_changes", { event: "*", schema: "public", table: "bets", filter: `user_id=eq.${state.user.id}` }, () => {
       clearTimeout(betTimer);
       betTimer = setTimeout(refreshBets, 250);

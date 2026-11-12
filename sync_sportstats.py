@@ -14,7 +14,7 @@ from typing import Any
 import requests
 from main import flag_url, hebrew_name
 
-API_BASE = "https://sportstatsapi.com/api/v1"
+API_BASE = "https://api.sportstatsapi.com/api/v1"
 # Confirmed from the completed league-catalogue diagnostic; do not rescan catalogue.
 LEAGUES = (
     ("l30", "england", "Premier League"),

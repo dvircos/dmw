@@ -66,8 +66,13 @@ class SportStatsParsingTests(unittest.TestCase):
                    "home_team": {"score": 0}, "away_team": {"score": 0}}
             self.assertIsNone(SportStatsSync.live_score(row))
 
+    def test_ft_is_settled_from_canonical_soccer_status_even_if_status_code_differs(self):
+        row = {"status": "FT", "status_code": "finished",
+               "home_team": {"score": 2}, "away_team": {"score": 1}}
+        self.assertEqual(SportStatsSync.final_score(row), (2, 1))
+
     def test_extra_time_and_unconfirmed_statuses_are_not_settled(self):
-        for status, code in [("AET", "final"), ("PEN", "final"), ("2H", "live"), ("FT", "in_progress")]:
+        for status, code in [("AET", "final"), ("PEN", "final"), ("2H", "live")]:
             row = {"status": status, "status_code": code,
                    "home_team": {"score": 2}, "away_team": {"score": 1},
                    "full_time_score": "[1-1]"}

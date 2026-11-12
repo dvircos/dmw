@@ -118,6 +118,7 @@ function empty(parent, text) {
 }
 
 function showTab(tab) {
+  if (state.tab !== tab && state.selected) closeSheet();
   state.tab = tab;
   if (tab === "games") state.gameView = "active";
   if (tab === "archive") state.gameView = "archive";

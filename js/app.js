@@ -114,12 +114,16 @@ function empty(parent, text) {
 
 function showTab(tab) {
   state.tab = tab;
-  $("games-tools").classList.toggle("hidden", tab !== "games");
-  $("view-games").classList.toggle("hidden", tab !== "games");
+  if (tab === "games") state.gameView = "active";
+  if (tab === "archive") state.gameView = "archive";
+  const gamesVisible = tab === "games" || tab === "archive";
+  $("games-tools").classList.toggle("hidden", !gamesVisible);
+  $("view-games").classList.toggle("hidden", !gamesVisible);
   $("view-bets").classList.toggle("hidden", tab !== "bets");
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
-  if (tab === "games") { paintGameViewTabs(); renderGames(); }
+  $("games-tools").classList.toggle("hidden", tab === "archive");
+  if (gamesVisible) renderGames();
   if (tab === "bets") markSettledBetsSeen();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
   document.querySelectorAll(".nav-btn").forEach((button) => {
@@ -183,17 +187,6 @@ function markSettledBetsSeen() {
     localStorage.setItem(key, JSON.stringify(settledBetIds()));
   } catch (_error) {}
   renderSettledBadge();
-}
-
-function paintGameViewTabs() {
-  document.querySelectorAll(".game-view-tab").forEach((button) => {
-    const active = button.dataset.gameView === state.gameView;
-    button.classList.toggle("bg-gold", active);
-    button.classList.toggle("text-ink", active);
-    button.classList.toggle("font-extrabold", active);
-    button.classList.toggle("text-slate-300", !active);
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-  });
 }
 
 function renderGames() {
@@ -1334,12 +1327,31 @@ $("auth-form").addEventListener("submit", submitAuth);
 $("logout").addEventListener("click", () => supabase.auth.signOut());
 $("refresh").addEventListener("click", () => refreshAll().then(() => toast("הנתונים עודכנו")));
 document.querySelectorAll(".nav-btn").forEach((button) => button.addEventListener("click", () => showTab(button.dataset.tab)));
-document.querySelectorAll(".game-view-tab").forEach((button) => button.addEventListener("click", () => {
-  state.gameView = button.dataset.gameView;
-  state.expandedGameId = null;
-  paintGameViewTabs();
+let leagueSwipeStart = null;
+$("view-games").addEventListener("touchstart", (event) => {
+  if (!event.touches || event.touches.length !== 1) { leagueSwipeStart = null; return; }
+  const target = event.target;
+  if (target.closest("button, input, select, textarea, a")) { leagueSwipeStart = null; return; }
+  leagueSwipeStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+}, { passive: true });
+$("view-games").addEventListener("touchend", (event) => {
+  if (!leagueSwipeStart || !event.changedTouches?.length) return;
+  const dx = event.changedTouches[0].clientX - leagueSwipeStart.x;
+  const dy = event.changedTouches[0].clientY - leagueSwipeStart.y;
+  leagueSwipeStart = null;
+  if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+  const leagueButtons = [...document.querySelectorAll(".league-tab")];
+  const leagues = leagueButtons.map((button) => button.dataset.league);
+  const current = leagues.indexOf(state.league);
+  if (current < 0 || !leagues.length) return;
+  // A left swipe advances to the next league; a right swipe returns to the previous one.
+  const next = (current + (dx < 0 ? 1 : -1) + leagues.length) % leagues.length;
+  state.league = leagues[next];
+  paintLeagueTabs();
+  leagueButtons[next]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   renderGames();
-}));
+}, { passive: true });
+
 document.querySelectorAll(".league-tab").forEach((button) => button.addEventListener("click", () => {
   state.league = button.dataset.league;
   paintLeagueTabs();

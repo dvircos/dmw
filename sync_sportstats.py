@@ -335,7 +335,16 @@ def main() -> None:
     if not 1 <= args.days <= 31:
         parser.error("--days must be between 1 and 31")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    sync = SportStatsSync()\n    if args.mode == "fixtures":\n        sync.sync_fixtures(args.days)\n    else:\n        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":\n            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))\n            if local_now.minute != 0 or local_now.hour not in {21, 22, 23, 0}:\n                log.info("Outside scheduled Israel hours 21:00, 22:00, 23:00, 00:00; no provider calls.")\n                return\n        sync.sync_results()
+    sync = SportStatsSync()
+    if args.mode == "fixtures":
+        sync.sync_fixtures(args.days)
+    else:
+        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
+            if local_now.minute != 0 or local_now.hour not in {21, 22, 23, 0}:
+                log.info("Outside scheduled Israel hours 21:00, 22:00, 23:00, 00:00; no provider calls.")
+                return
+        sync.sync_results()
 
 
 if __name__ == "__main__":

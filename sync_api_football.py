@@ -15,7 +15,7 @@ ISRAEL_TZ = ZoneInfo("Asia/Jerusalem")
 # Verified API-Football competition IDs: Israel Ligat Ha'al 202, UCL 2,
 # La Liga 140, Premier League 39, UEFA Nations League 633.
 LEAGUES = ((202, "israel"), (2, "ucl"), (140, "spain"), (39, "england"), (633, "nations"))
-LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT"}
+LIVE_STATUSES = {"1H", "HT", "2H", "ET", "BT", "P", "LIVE", "INT", "SUSP"}
 FINAL_STATUSES = {"FT", "AET", "PEN"}
 CANCELLED_STATUSES = {"CANC"}
 PLACEHOLDERS = {"", "YOUR_SPORTS_API_KEY_HERE"}

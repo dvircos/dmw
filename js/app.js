@@ -738,13 +738,13 @@ function renderBoard() {
   userHeading.textContent = "משתמש";
   const profitHeading = document.createElement("span");
   profitHeading.className = "text-left";
-  profitHeading.textContent = "רווח / הפסד";
+  profitHeading.textContent = "רווח / הפסד מהימורים שהסתיימו";
   headerRow.append(rankHeading, userHeading, profitHeading);
   table.append(headerRow);
 
   state.board.forEach((row, index) => {
     const mine = row.id === state.user?.id;
-    const net = Number(row.balance || 0) - 1000;
+    const net = Number(row.net_profit || 0);
     const line = document.createElement("div");
     line.className = `grid grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/30 px-3 py-3 last:border-b-0 ${mine ? "bg-gold/10" : ""}`;
 
@@ -768,7 +768,7 @@ function renderBoard() {
 
   const note = document.createElement("p");
   note.className = "mt-2 text-[11px] text-slate-400";
-  note.textContent = "הרווח או ההפסד מחושבים ביחס ליתרת הפתיחה של 1,000 ₪.";
+  note.textContent = "מוצגים רק רווחים והפסדים מהימורים שהסתיימו. הימורים פתוחים אינם נכללים.";
   root.append(note);
 }
 

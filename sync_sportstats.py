@@ -252,21 +252,26 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
-        # Only today's fixtures qualify, and only after kickoff (within 2 hours).
+        # Only today's fixtures qualify; poll on the five half-hour checks after kickoff.
         israel = ZoneInfo("Asia/Jerusalem")
         local_date = now.astimezone(israel).date()
         day_start = datetime.combine(local_date, time.min, tzinfo=israel).astimezone(timezone.utc)
         day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel).astimezone(timezone.utc)
-        # A match becomes eligible only after its scheduled kickoff, and only
-        # for the following two hours. Still constrain it to today's fixtures.
-        active_window_start = max(day_start, now - timedelta(hours=2))
+        # Five scheduled checks: kickoff+30m, +60m, +90m, +120m, +150m.
+        # With a global half-hour cron, the rolling interval [now-3h, now-30m]
+        # selects exactly those five checks for each fixture, regardless of
+        # whether its kickoff falls on :00, :15, :30 or :45.
+        active_window_start = max(day_start, now - timedelta(hours=3))
+        active_window_end = min(day_end, now - timedelta(minutes=30))
+        if active_window_end <= active_window_start:
+            return []
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"gte.{active_window_start.isoformat()}",
-            "and": f"(match_time.lt.{min(day_end, now).isoformat()})",
+            "match_time": f"gt.{active_window_start.isoformat()}",
+            "and": f"(match_time.lte.{active_window_end.isoformat()})",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",
             "limit": "500",
@@ -306,7 +311,7 @@ class SportStatsSync:
         now = datetime.now(timezone.utc)
         games = self.fetch_unconfirmed_games(now)
         if not games:
-            log.info("No unconfirmed SportStatsAPI-linked games from today are within the 2-hour post-kickoff window; 0 provider requests.")
+            log.info("No unconfirmed SportStatsAPI-linked games from today are in one of the five post-kickoff polling windows; 0 provider requests.")
             return 0
 
         league_codes = sorted({str(g["sportstats_league_code"]) for g in games if g.get("sportstats_league_code")})

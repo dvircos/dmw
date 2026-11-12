@@ -91,6 +91,15 @@ class Sync:
         self.reserve()
         r = self.session.get(f"{API_BASE}/fixtures", params=params, timeout=40)
         self.calls += 1
+        try:
+            self.rpc("log_api_request", {
+                "p_endpoint": "/fixtures",
+                "p_params": {**params, "purpose": purpose},
+                "p_status": r.status_code,
+                "p_purpose": purpose,
+            })
+        except Exception as exc:
+            log.warning("Could not persist API request diagnostic: %s", type(exc).__name__)
         if r.status_code in (401, 403):
             raise RuntimeError(f"API-Football rejected API_KEY (HTTP {r.status_code})")
         if r.status_code == 429:

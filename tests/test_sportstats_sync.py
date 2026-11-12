@@ -41,6 +41,34 @@ class SportStatsParsingTests(unittest.TestCase):
                "home_team": {"name": "A"}, "away_team": {"code": "b", "name": "B"}}
         self.assertIsNone(parse_match(row, {"code": "l30", "label": "england", "name": "Premier League"}))
 
+
+    def test_home_and_away_identity_must_be_distinct(self):
+        league = {"code": "lml", "label": "nations", "name": "UEFA Nations League"}
+        base = {"code": "m1", "status": "NS", "start_at": "2026-11-21T12:30:00Z",
+                "home_team": {"code": "a", "name": "France"},
+                "away_team": {"code": "b", "name": "Italy"}}
+        self.assertIsNotNone(parse_match(base, league))
+        self.assertIsNone(parse_match({**base, "away_team": {"code": "a", "name": "Italy"}}, league))
+        self.assertIsNone(parse_match({**base, "away_team": {"code": "b", "name": "France"}}, league))
+
+    def test_hebrew_translation_preserves_distinct_home_away_names(self):
+        league = {"code": "lml", "label": "nations", "name": "UEFA Nations League"}
+        row = {"code": "m2", "status": "NS", "start_at": "2026-11-21T12:30:00Z",
+               "home_team": {"code": "fr", "name": "France"},
+               "away_team": {"code": "it", "name": "Italy"}}
+        result = parse_match(row, league)
+        self.assertEqual(result["home_display"], "צרפת")
+        self.assertEqual(result["away_display"], "איטליה")
+
+    def test_club_crest_ids_are_unique_across_distinct_clubs(self):
+        from sync_sportstats import CLUBS
+        crest_owners = {}
+        for alias, (hebrew, crest_id) in CLUBS.items():
+            previous = crest_owners.get(crest_id)
+            self.assertTrue(previous is None or previous == hebrew,
+                            f"crest ID {crest_id} is shared by {previous} and {hebrew} (alias {alias})")
+            crest_owners[crest_id] = hebrew
+
     def test_full_time_result_uses_regular_time_team_scores(self):
         row = {
             "status": "FT", "status_code": "final",

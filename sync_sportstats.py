@@ -252,24 +252,16 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
-        # Keep checking every unconfirmed fixture from today until it is
-        # explicitly confirmed FT. GitHub scheduled runs can be delayed; a
-        # hard 3-hour lower bound could permanently drop a match before the
-        # provider publishes its final status.
-        israel = ZoneInfo("Asia/Jerusalem")
-        local_date = now.astimezone(israel).date()
-        day_start = datetime.combine(local_date, time.min, tzinfo=israel).astimezone(timezone.utc)
-        day_end = datetime.combine(local_date + timedelta(days=1), time.min, tzinfo=israel).astimezone(timezone.utc)
-        active_window_end = min(day_end, now - timedelta(minutes=30))
-        if active_window_end <= day_start:
-            return []
+        # Keep every started, unconfirmed fixture in the polling set across
+        # local midnight and delayed provider finalization. A fixture leaves
+        # this set only after result_confirmed becomes true (or its status is
+        # explicitly changed out of upcoming/live by the application).
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"gt.{day_start.isoformat()}",
-            "and": f"(match_time.lte.{active_window_end.isoformat()})",
+            "match_time": f"lte.{now.isoformat()}",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",
             "limit": "500",
@@ -342,12 +334,36 @@ class SportStatsSync:
             log.info("No supported SportStatsAPI leagues among pending games; 0 provider requests.")
             return 0
 
-        israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date().isoformat()
-        start = end = israel_today
+        israel_today = now.astimezone(ZoneInfo("Asia/Jerusalem")).date()
         by_code = {str(g["sportstats_match_code"]): g for g in games}
         confirmed = 0
 
         for league_code in known_codes:
+            # One list request per league containing started, unconfirmed
+            # games. Include the oldest pending kickoff date through today so
+            # a match is not lost merely because Israel passed midnight.
+            league_games = [
+                g for g in games
+                if str(g.get("sportstats_league_code") or "") == league_code
+            ]
+            kickoff_dates = []
+            for game in league_games:
+                try:
+                    kickoff = datetime.fromisoformat(
+                        str(game["match_time"]).replace("Z", "+00:00")
+                    )
+                    if kickoff.tzinfo is not None:
+                        kickoff_dates.append(kickoff.astimezone(
+                            ZoneInfo("Asia/Jerusalem")
+                        ).date())
+                except (KeyError, TypeError, ValueError):
+                    continue
+            if not kickoff_dates:
+                log.warning("Skipping %s: pending games have no valid kickoff date.", league_code)
+                continue
+            start = min(kickoff_dates).isoformat()
+            end = israel_today.isoformat()
+
             # Reserve quota before the provider request; never retry or paginate.
             allowed = self.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
             if allowed is not True:

@@ -8,6 +8,8 @@ alter table public.winner_markets add column if not exists settled_selection tex
 alter table public.winner_markets add column if not exists settled_at timestamptz;
 alter table public.winner_markets add column if not exists settled_by uuid references auth.users(id) on delete set null;
 create index if not exists winner_markets_unsettled_idx on public.winner_markets(game_id,market_key) where settled_at is null and active=true;
+create index if not exists bets_market_id_idx on public.bets(market_id) where market_id is not null;
+create index if not exists winner_markets_settled_by_idx on public.winner_markets(settled_by) where settled_by is not null;
 
 CREATE OR REPLACE FUNCTION public.import_winner_markets(p_markets jsonb)
  RETURNS jsonb

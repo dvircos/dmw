@@ -1,0 +1,73 @@
+-- Restrict Winner odds import to administrators and cover the app_groups creator foreign key.
+create or replace function public.import_winner_odds(p_matches jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  item jsonb;
+  v_home text;
+  v_away text;
+  v_kickoff timestamptz;
+  v_home_odds numeric;
+  v_draw_odds numeric;
+  v_away_odds numeric;
+  v_updated integer := 0;
+  v_rows integer := 0;
+  v_valid integer := 0;
+begin
+  if not public.admin_is_admin() then
+    raise exception 'אין הרשאת מנהל';
+  end if;
+  if jsonb_typeof(p_matches) <> 'array' then
+    raise exception 'matches must be an array';
+  end if;
+  if jsonb_array_length(p_matches) > 500 then
+    raise exception 'too many matches in one import';
+  end if;
+
+  for item in select value from jsonb_array_elements(p_matches)
+  loop
+    v_home := nullif(trim(item->>'home_team'), '');
+    v_away := nullif(trim(item->>'away_team'), '');
+    v_kickoff := nullif(item->>'kickoff', '')::timestamptz;
+    v_home_odds := nullif(item->>'home_odds', '')::numeric;
+    v_draw_odds := nullif(item->>'draw_odds', '')::numeric;
+    v_away_odds := nullif(item->>'away_odds', '')::numeric;
+
+    if v_home is null or v_away is null or v_kickoff is null
+       or v_home_odds is null or v_draw_odds is null or v_away_odds is null
+       or v_home_odds not between 1.01 and 99.99
+       or v_draw_odds not between 1.01 and 99.99
+       or v_away_odds not between 1.01 and 99.99 then
+      continue;
+    end if;
+    v_valid := v_valid + 1;
+
+    update public.games
+       set home_odds = v_home_odds,
+           draw_odds = v_draw_odds,
+           away_odds = v_away_odds,
+           odds_locked = true
+     where (lower(trim(home_team)) = lower(v_home) or lower(trim(sportstats_api_home_name)) = lower(v_home))
+       and (lower(trim(away_team)) = lower(v_away) or lower(trim(sportstats_api_away_name)) = lower(v_away))
+       and abs(extract(epoch from (match_time - v_kickoff))) <= 1200
+       and status = 'upcoming'
+       and match_time > now() + interval '5 minutes'
+       and coalesce(result_confirmed, false) = false;
+
+    get diagnostics v_rows = row_count;
+    v_updated := v_updated + v_rows;
+  end loop;
+  return jsonb_build_object(
+    'updated', v_updated,
+    'matched', v_updated,
+    'processed', v_valid,
+    'received', jsonb_array_length(p_matches)
+  );
+end;
+$$;
+
+create index if not exists app_groups_created_by_idx
+  on public.app_groups (created_by);

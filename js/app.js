@@ -1116,6 +1116,8 @@ async function enterApp(session) {
   state.isAdmin = !adminCheck.error && adminCheck.data === true;
   $("admin-nav").classList.toggle("hidden", !state.isAdmin);
   $("admin-nav").classList.toggle("flex", state.isAdmin);
+  $("nav-items").classList.toggle("grid-cols-5", state.isAdmin);
+  $("nav-items").classList.toggle("grid-cols-4", !state.isAdmin);
   const inviteUrl = new URL(location.href);
   const inviteCode = inviteUrl.searchParams.get("join");
   if (inviteCode) {

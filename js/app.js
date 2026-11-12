@@ -1,7 +1,6 @@
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
-import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, countdownLabel, leagueKey, money, slipLegs, when } from "./format.js";
-import { toast } from "./toast.js";
+
+
+
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const state = {
@@ -226,11 +225,12 @@ function renderGames() {
           const button = document.createElement("button");
           button.type = "button";
           button.disabled = !open || !Number.isFinite(Number(price)) || Number(price) < 1.01;
-          button.className = "rounded-xl border border-slate-700/70 bg-panel px-2 py-3 text-center disabled:opacity-40";
+          const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && !leg.marketId && leg.selection === selection);
+          button.className = "rounded-xl border px-2 py-3 text-center disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-panel");
           const l = document.createElement("span"); l.className="block text-[11px] text-slate-400"; l.textContent=label;
           const v = document.createElement("strong"); v.className="mt-1 block text-lg text-mint"; v.dir="ltr"; v.textContent=Number(price)>=1.01?Number(price).toFixed(2):"—";
           button.append(l,v);
-          if (!button.disabled) button.addEventListener("click",()=>openSheet(game,selection,Number(price)));
+          if (!button.disabled) button.addEventListener("click",()=>toggleSlip(game,selection,Number(price)));
           grid.append(button);
         });
         group.append(title,grid); panel.append(group);
@@ -251,11 +251,12 @@ function renderGames() {
           const button = document.createElement("button");
           button.type = "button";
           button.disabled = !open || !Number.isFinite(price) || price < 1.01;
-          button.className = "rounded-xl border border-slate-700/70 bg-ink/50 px-2 py-3 text-center transition active:scale-[.98] disabled:opacity-40";
+          const picked = state.slip.some((leg) => leg.gameId === Number(game.id) && Number(leg.marketId) === Number(market.id) && leg.marketSelection === outcome.selection);
+          button.className = "rounded-xl border px-2 py-3 text-center transition active:scale-[.98] disabled:opacity-40 " + (picked ? "border-gold bg-gold/15 ring-1 ring-gold" : "border-slate-700/70 bg-ink/50");
           const label = document.createElement("span"); label.className="block text-xs text-slate-300"; label.textContent=outcome.label || outcome.selection;
           const value = document.createElement("strong"); value.className="mt-1 block text-lg text-mint"; value.dir="ltr"; value.textContent=Number.isFinite(price)?price.toFixed(2):"—";
           button.append(label,value);
-          if (!button.disabled) button.addEventListener("click",()=>openMarketSheet(game,market,outcome));
+          if (!button.disabled) button.addEventListener("click",()=>toggleMarketSlip(game,market,outcome));
           grid.append(button);
         });
         group.append(title,grid); panel.append(group);
@@ -371,7 +372,7 @@ function renderBets() {
         name.textContent = `${match.home_team || "משחק"} – ${match.away_team || ""}`;
         const pick = document.createElement("span");
         pick.className = "shrink-0 text-xs text-slate-400";
-        pick.textContent = `${SELECTION[leg.bet_selection] || leg.bet_selection} · ${Number(leg.odds).toFixed(2)}`;
+        pick.textContent = (leg.market_outcome_label ? leg.market_label + " · " + leg.market_outcome_label : (SELECTION[leg.bet_selection] || leg.bet_selection)) + " · " + Number(leg.odds).toFixed(2);
         row.append(name, pick);
         list.append(row);
       });
@@ -581,7 +582,8 @@ function slipRow(leg, extra) {
   name.textContent = `${leg.home} נגד ${leg.away}`;
   const meta = document.createElement("p");
   meta.className = "text-xs text-mist";
-  meta.textContent = `${SELECTION[leg.selection]} · ${Number(leg.odds).toFixed(2)}`;
+  const pickLabel = leg.marketOutcomeLabel ? leg.marketLabel + " · " + leg.marketOutcomeLabel : (SELECTION[leg.selection] || leg.selection);
+  meta.textContent = pickLabel + " · " + Number(leg.odds).toFixed(2);
   text.append(name, meta);
   const remove = document.createElement("button");
   remove.type = "button";
@@ -666,19 +668,29 @@ function updateSinglesTotal() {
 function toggleSlip(game, selection, price) {
   const gameId = Number(game.id);
   const index = state.slip.findIndex((leg) => leg.gameId === gameId);
-  if (index >= 0 && state.slip[index].selection === selection) {
-    state.slip.splice(index, 1);
-  } else if (index >= 0) {
-    state.slip[index] = { ...state.slip[index], selection, odds: Number(price), home: game.home_team, away: game.away_team };
-  } else {
-    if (state.slip.length >= 8) {
-      toast("אפשר עד 8 משחקים בטופס");
-      return;
-    }
-    state.slip.push({ gameId, selection, odds: Number(price), home: game.home_team, away: game.away_team, stake: "25" });
+  if (index >= 0 && !state.slip[index].marketId && state.slip[index].selection === selection) state.slip.splice(index, 1);
+  else {
+    const leg = { gameId, selection, odds: Number(price), home: game.home_team, away: game.away_team, stake: index >= 0 ? state.slip[index].stake || "25" : "25" };
+    if (index >= 0) state.slip[index] = leg;
+    else { if (state.slip.length >= 8) { toast("אפשר עד 8 משחקים בטופס"); return; } state.slip.push(leg); }
   }
-  renderSlip();
-  renderGames();
+  renderSlip(); renderGames();
+}
+
+function toggleMarketSlip(game, market, outcome) {
+  const gameId = Number(game.id);
+  const index = state.slip.findIndex((leg) => leg.gameId === gameId);
+  const same = index >= 0 && Number(state.slip[index].marketId) === Number(market.id) && state.slip[index].marketSelection === outcome.selection;
+  if (same) state.slip.splice(index, 1);
+  else {
+    const leg = { gameId, marketId: Number(market.id), marketKey: market.market_key,
+      marketLabel: market.market_label, marketOutcomeLabel: outcome.label, marketSelection: outcome.selection,
+      marketLine: market.line, odds: Number(outcome.price), home: game.home_team, away: game.away_team,
+      stake: index >= 0 ? state.slip[index].stake || "25" : "25" };
+    if (index >= 0) state.slip[index] = leg;
+    else { if (state.slip.length >= 8) { toast("אפשר עד 8 משחקים בטופס"); return; } state.slip.push(leg); }
+  }
+  renderSlip(); renderGames();
 }
 
 function oddsFor(game, selection) {
@@ -805,7 +817,7 @@ async function refreshBets() {
   if (!state.user) return;
   const { data, error } = await supabase
     .from("bets")
-    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, market_id, market_key, market_label, market_selection, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
+    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, market_id, market_key, market_label, market_selection, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, market_id, market_key, market_selection, market_label, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
     .limit(1000);
@@ -1078,7 +1090,9 @@ function roundMoney(value) {
 
 async function submitTicket(legs, amount) {
   const { data, error } = await supabase.rpc("place_parlay", {
-    p_legs: legs.map((leg) => ({ game_id: leg.gameId, selection: leg.selection })),
+    p_legs: legs.map((leg) => leg.marketId
+      ? { game_id: leg.gameId, market_id: leg.marketId, market_selection: leg.marketSelection }
+      : { game_id: leg.gameId, selection: leg.selection }),
     p_amount: amount,
   });
   if (error) return { error };

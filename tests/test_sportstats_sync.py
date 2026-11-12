@@ -50,6 +50,22 @@ class SportStatsParsingTests(unittest.TestCase):
         }
         self.assertEqual(SportStatsSync.final_score(row), (0, 1))
 
+    def test_live_minute_and_halftime_scores_are_separate_from_final_results(self):
+        minute_row = {"status": "52", "status_code": "live", "minute": 52,
+                      "home_team": {"score": 1}, "away_team": {"score": 0}}
+        halftime_row = {"status": "HT", "status_code": "halftime",
+                        "home_team": {"score": 1}, "away_team": {"score": 1}}
+        self.assertEqual(SportStatsSync.live_score(minute_row), (1, 0, 52, "52"))
+        self.assertEqual(SportStatsSync.live_score(halftime_row), (1, 1, None, "HT"))
+        self.assertIsNone(SportStatsSync.final_score(minute_row))
+        self.assertIsNone(SportStatsSync.final_score(halftime_row))
+
+    def test_scheduled_and_unknown_statuses_are_not_live(self):
+        for status in ("NS", "TBD", "", "FT", "PST", "CANC"):
+            row = {"status": status, "status_code": "scheduled",
+                   "home_team": {"score": 0}, "away_team": {"score": 0}}
+            self.assertIsNone(SportStatsSync.live_score(row))
+
     def test_extra_time_and_unconfirmed_statuses_are_not_settled(self):
         for status, code in [("AET", "final"), ("PEN", "final"), ("2H", "live"), ("FT", "in_progress")]:
             row = {"status": status, "status_code": code,

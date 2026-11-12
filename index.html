@@ -322,6 +322,91 @@
       body[data-theme="light"] #view-bets .bet-history-card .text-rose-300 {
         color:#be123c !important;
       }
+      /* Light mode: readable league strip, search and all match-market controls. */
+      body[data-theme="light"] #games-tools #league-tabs {
+        background:#ffffff !important;
+        border-color:#d5e2f3 !important;
+        scrollbar-color:#9bb8e5 #edf3fb !important;
+        box-shadow:0 2px 10px rgba(35,65,105,.05);
+      }
+      body[data-theme="light"] #games-tools .league-tab {
+        border-color:#d4e0ef !important;
+        color:#40536f !important;
+        background:#edf3fb !important;
+        box-shadow:none !important;
+        opacity:1 !important;
+      }
+      body[data-theme="light"] #games-tools .league-tab:not(.active) {
+        color:#40536f !important;
+        background:#edf3fb !important;
+      }
+      body[data-theme="light"] #games-tools .league-tab.active {
+        color:#ffffff !important;
+        background:#2563eb !important;
+        border-color:#2563eb !important;
+        box-shadow:0 2px 8px rgba(37,99,235,.2) !important;
+      }
+      body[data-theme="light"] #games-tools .search-wrap input {
+        color:#172554 !important;
+        background:#ffffff !important;
+        border-color:#d5e2f3 !important;
+      }
+      body[data-theme="light"] #games-tools .search-wrap input::placeholder {
+        color:#7185a3 !important;
+      }
+      body[data-theme="light"] #games-tools .search-wrap svg {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #view-games article {
+        color:#172554 !important;
+        background:#ffffff !important;
+        border-color:#d5e2f3 !important;
+        box-shadow:0 4px 16px rgba(35,65,105,.06) !important;
+      }
+      body[data-theme="light"] #view-games article .bg-ink\/20,
+      body[data-theme="light"] #view-games article .bg-ink\/35,
+      body[data-theme="light"] #view-games article .bg-ink\/50 {
+        background:#f1f5fb !important;
+      }
+      body[data-theme="light"] #view-games article .border-slate-700\/60,
+      body[data-theme="light"] #view-games article .border-slate-700\/70 {
+        border-color:#cbd8e8 !important;
+      }
+      body[data-theme="light"] #view-games article .text-slate-100,
+      body[data-theme="light"] #view-games article .text-slate-200 {
+        color:#172554 !important;
+      }
+      body[data-theme="light"] #view-games article .text-slate-300,
+      body[data-theme="light"] #view-games article .text-slate-400 {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #view-games article .text-mint {
+        color:#15803d !important;
+      }
+      body[data-theme="light"] #view-games article .text-gold {
+        color:#1d4ed8 !important;
+      }
+      body[data-theme="light"] #view-games article button[aria-pressed="false"] {
+        background:#f1f5fb !important;
+        color:#40536f !important;
+        border-color:#cbd8e8 !important;
+      }
+      body[data-theme="light"] #view-games article button[aria-pressed="true"] {
+        background:#dbeafe !important;
+        color:#1d4ed8 !important;
+        border-color:#60a5fa !important;
+      }
+      body[data-theme="light"] #view-games article button:disabled {
+        opacity:.65 !important;
+      }
+      body[data-theme="light"] #view-games article .text-emerald-400,
+      body[data-theme="light"] #view-games article .text-emerald-300 {
+        color:#15803d !important;
+      }
+      body[data-theme="light"] #view-games article .text-rose-400,
+      body[data-theme="light"] #view-games article .text-rose-300 {
+        color:#be123c !important;
+      }
       button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid #e8bd63; outline-offset:2px; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -518,6 +603,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-01"></script>
+    <script type="module" src="./js/app.js?v=20261113-02"></script>
   </body>
 </html>

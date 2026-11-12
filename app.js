@@ -175,7 +175,7 @@ function renderGames() {
     const score = document.createElement("div");
     score.className = "min-w-14 text-center text-xl font-extrabold";
     score.dir = "ltr";
-    score.textContent = game.status === "live" || game.status === "finished" ? `${game.home_score} - ${game.away_score}` : "VS";
+    score.textContent = game.status === "live" || game.status === "finished" ? `${game.away_score} - ${game.home_score}` : "VS";
     teams.append(home, score, away);
 
     const odds = document.createElement("div");

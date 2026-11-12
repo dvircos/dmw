@@ -19,6 +19,7 @@ create index if not exists winner_markets_game_idx on public.winner_markets(game
 alter table public.winner_markets enable row level security;
 drop policy if exists winner_markets_read on public.winner_markets;
 create policy winner_markets_read on public.winner_markets for select to anon, authenticated using (active = true);
+grant select on public.winner_markets to anon, authenticated;
 
 create table if not exists public.market_display_settings (
   market_key text primary key check (market_key in ('handicap_ft','total_goals_2_5','btts')),
@@ -311,5 +312,13 @@ drop trigger if exists settle_winner_market_bets_trigger on public.games;
 create trigger settle_winner_market_bets_trigger
 after update of status,home_score,away_score,result_confirmed on public.games
 for each row execute function public.settle_winner_market_bets();
+
+do $
+begin
+  if exists(select 1 from pg_publication where pubname='supabase_realtime')
+     and not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='winner_markets') then
+    alter publication supabase_realtime add table public.winner_markets;
+  end if;
+end $;
 
 notify pgrst,'reload schema';

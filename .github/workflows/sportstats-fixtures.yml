@@ -1,7 +1,10 @@
-name: SportStatsAPI fixture import
-# Single controlled import on first rollout; no recurring schedule.
+name: SportStatsAPI morning fixture import
 
 on:
+  # UTC 03:00 and 04:00 cover Israel 06:00 in both daylight and standard time.
+  # The script filters by Israel-local time so exactly one run imports fixtures.
+  schedule:
+    - cron: "0 3,4 * * *"
   workflow_dispatch:
     inputs:
       days:
@@ -12,19 +15,24 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sportstats-fixtures
+  cancel-in-progress: false
+
 jobs:
   fixtures:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: Import upcoming fixtures only
+      - name: Import upcoming fixtures from SportStatsAPI
         env:
           SPORTSTATS_API_KEY: ${{ secrets.SPORTSTATS_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: python sync_sportstats.py fixtures --days "${{ inputs.days || '7' }}"

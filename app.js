@@ -49,7 +49,7 @@ function setBalance(value) {
 function flag(url) {
   const img = document.createElement("img");
   img.alt = "";
-  img.className = "h-8 w-8 rounded-full bg-white/10 object-cover";
+  img.className = "h-10 w-10 rounded-xl bg-white/5 object-contain p-0.5";
   img.referrerPolicy = "no-referrer";
   if (typeof url === "string" && url.startsWith("https://")) img.src = url;
   return img;

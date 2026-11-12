@@ -202,7 +202,7 @@ function teamColumn(url, name) {
   const wrap = document.createElement("div");
   wrap.className = "flex min-w-0 flex-col items-center gap-1 text-center";
   const title = document.createElement("span");
-  title.className = "max-w-full truncate text-sm font-bold";
+  title.className = "max-w-full whitespace-normal break-words text-sm font-bold leading-tight";
   title.textContent = name;
   wrap.append(flag(url), title);
   return wrap;

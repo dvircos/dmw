@@ -77,6 +77,20 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn("p_home_score > v_game.away_score", migration)
         self.assertIn("p_home_score < v_game.away_score", migration)
 
+    def test_winner_import_allowlist_only_accepts_three_requested_extra_markets(self):
+        migration = (ROOT / "migration_winner_market_allowlist_and_admin_username.sql").read_text(encoding="utf-8")
+        self.assertIn("item->>'mop' not in ('30002','50002','400002')", migration)
+        self.assertIn("market_key not in ('handicap_ft','total_goals_2_5','btts')", migration)
+        self.assertIn("set active=false", migration)
+
+    def test_admin_can_change_username_through_a_guarded_rpc(self):
+        app = (ROOT / "js" / "app.js").read_text(encoding="utf-8")
+        migration = (ROOT / "migration_winner_market_allowlist_and_admin_username.sql").read_text(encoding="utf-8")
+        self.assertIn('supabase.rpc("admin_update_username"', app)
+        self.assertIn("if not public.admin_is_admin()", migration)
+        self.assertIn("lower(username)=lower(v_username)", migration)
+        self.assertIn("admin_update_username", migration)
+
     def test_winner_odds_import_is_admin_guarded(self):
         migration = (ROOT / "migration_security_and_performance.sql").read_text(encoding="utf-8")
         self.assertIn("if not public.admin_is_admin() then", migration)

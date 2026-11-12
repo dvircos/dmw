@@ -341,7 +341,7 @@ def main() -> None:
     else:
         if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
             local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
-            if local_now.minute != 0 or local_now.hour not in {21, 22, 23, 0}:
+            if local_now.hour not in {21, 22, 23, 0}:
                 log.info("Outside scheduled Israel hours 21:00, 22:00, 23:00, 00:00; no provider calls.")
                 return
         sync.sync_results()

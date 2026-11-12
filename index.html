@@ -457,6 +457,24 @@
       body[data-theme="light"] #sheet button:disabled {
         opacity:.55 !important;
       }
+      /* Light theme: floating selected-bets dock. */
+      body[data-theme="light"] #slip > button {
+        background:#ffffff !important;
+        color:#172554 !important;
+        border-color:#cbd8e8 !important;
+        box-shadow:0 8px 28px rgba(35,65,105,.16) !important;
+      }
+      body[data-theme="light"] #slip > button .text-white,
+      body[data-theme="light"] #slip > button .text-slate-300 {
+        color:#526581 !important;
+      }
+      body[data-theme="light"] #slip > button > span:first-child {
+        background:#edf3fb !important;
+      }
+      body[data-theme="light"] #slip > button > span:last-child {
+        background:#f2cc79 !important;
+        color:#172033 !important;
+      }
       /* Light theme: the actual bet-slip drawer (not the separate single-bet sheet). */
       body[data-theme="light"] #slip-drawer {
         background:#ffffff !important;
@@ -713,6 +731,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-04"></script>
+    <script type="module" src="./js/app.js?v=20261113-05"></script>
   </body>
 </html>

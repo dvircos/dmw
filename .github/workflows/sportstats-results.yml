@@ -9,7 +9,7 @@ on:
       - ".github/workflows/sportstats-results.yml"
   # Allow a one-off manual run without changing the recurring schedule.
   workflow_dispatch:
-  # Avoid the top/bottom of the hour to reduce scheduled-run contention.
+  # Poll every 20 minutes; active leagues are selected dynamically by the script.
   schedule:
     - cron: "*/20 * * * *"
 

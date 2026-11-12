@@ -13,6 +13,8 @@ const state = {
   bets: [],
   betsFilter: "pending",
   board: [],
+  groups: [],
+  activeGroupId: "00000000-0000-0000-0000-000000000001",
   selected: null,
   submitting: false,
   channel: null,
@@ -388,11 +390,109 @@ function renderBets() {
 
 function renderBoard() {
   const root = $("view-board");
+  root.replaceChildren();
+
+  const heading = document.createElement("div");
+  heading.className = "mb-3 flex items-center justify-between gap-2";
+  const title = document.createElement("h2");
+  title.className = "text-xl font-extrabold";
+  title.textContent = "טבלת מובילים";
+  heading.append(title);
+  root.append(heading);
+
+  const actions = document.createElement("div");
+  actions.className = "mb-4 grid grid-cols-2 gap-2";
+  const create = document.createElement("button");
+  create.type = "button";
+  create.className = "rounded-xl bg-gold px-3 py-3 text-sm font-extrabold text-ink";
+  create.textContent = "＋ יצירת קבוצה";
+  create.addEventListener("click", async () => {
+    const name = prompt("איך לקרוא לקבוצה?");
+    if (name === null) return;
+    if (name.trim().length < 2 || name.trim().length > 40) { toast("שם הקבוצה חייב להכיל 2 עד 40 תווים","error"); return; }
+    const isPublic = confirm("להציג את הקבוצה ברשימת הקבוצות שכולם יכולים להצטרף אליה?\nבחרו ביטול כדי ליצור קבוצה פרטית באמצעות קישור.");
+    const { data, error } = await supabase.rpc("groups_create", { p_name: name.trim(), p_is_public: isPublic });
+    if (error) { toast(cleanError(error),"error"); return; }
+    state.activeGroupId = data.id;
+    toast(isPublic ? "הקבוצה נוצרה והיא זמינה להצטרפות" : "הקבוצה הפרטית נוצרה");
+    await refreshBoard();
+    if (data.invite_code && navigator.clipboard?.writeText) {
+      try { await navigator.clipboard.writeText(data.invite_code); toast("קישור ההצטרפות הועתק ללוח"); } catch { toast("קוד הצטרפות: "+data.invite_code); }
+    } else if (data.invite_code) toast("קוד הצטרפות: "+data.invite_code);
+  });
+  const join = document.createElement("button");
+  join.type = "button";
+  join.className = "rounded-xl border border-slate-600 bg-panel px-3 py-3 text-sm font-bold";
+  join.textContent = "הצטרפות עם קוד";
+  join.addEventListener("click", async () => {
+    const code = prompt("הדביקו קוד או קישור הצטרפות לקבוצה:");
+    if (!code) return;
+    const match = code.match(/[a-f0-9]{12}/i);
+    const inviteCode = match ? match[0] : code.trim();
+    const { error } = await supabase.rpc("groups_join", { p_invite_code: inviteCode, p_group_id: null });
+    if (error) { toast(cleanError(error),"error"); return; }
+    toast("הצטרפת לקבוצה");
+    await refreshBoard();
+  });
+  actions.append(create,join);
+  root.append(actions);
+
+  const groupTitle = document.createElement("p");
+  groupTitle.className = "mb-2 text-xs font-bold text-slate-400";
+  groupTitle.textContent = "הקבוצות שלך וקבוצות פתוחות";
+  root.append(groupTitle);
+  const groupList = document.createElement("div");
+  groupList.className = "mb-4 flex gap-2 overflow-x-auto pb-2";
+  (state.groups || []).forEach((group) => {
+    const wrap = document.createElement("div");
+    wrap.className = "shrink-0";
+    if (group.is_member) {
+      const select = document.createElement("button");
+      select.type = "button";
+      select.className = `rounded-xl border px-3 py-2 text-sm font-bold ${group.id === state.activeGroupId ? "border-gold bg-gold/15 text-gold" : "border-slate-700 bg-panel text-slate-200"}`;
+      select.textContent = group.id === "00000000-0000-0000-0000-000000000001" ? "🌍 כולם" : group.name;
+      select.addEventListener("click", async () => { state.activeGroupId = group.id; await refreshBoard(); });
+      wrap.append(select);
+      if (group.invite_code && group.id !== "00000000-0000-0000-0000-000000000001") {
+        const share = document.createElement("button");
+        share.type = "button";
+        share.className = "ml-1 rounded-lg border border-slate-700 px-2 py-2 text-xs text-slate-300";
+        share.textContent = "קישור";
+        share.addEventListener("click", async () => {
+          const url = new URL(location.href);
+          url.searchParams.set("join", group.invite_code);
+          try { await navigator.clipboard.writeText(url.toString()); toast("קישור ההצטרפות הועתק"); }
+          catch { toast("קוד הצטרפות: "+group.invite_code); }
+        });
+        wrap.append(share);
+      }
+    } else {
+      const joinGroup = document.createElement("button");
+      joinGroup.type = "button";
+      joinGroup.className = "rounded-xl border border-slate-700 bg-panel px-3 py-2 text-sm text-slate-200";
+      joinGroup.textContent = `הצטרפות · ${group.name} · ${group.member_count}`;
+      joinGroup.addEventListener("click", async () => {
+        const { error } = await supabase.rpc("groups_join", { p_invite_code: null, p_group_id: group.id });
+        if (error) { toast(cleanError(error),"error"); return; }
+        state.activeGroupId = group.id;
+        await refreshBoard();
+      });
+      wrap.append(joinGroup);
+    }
+    groupList.append(wrap);
+  });
+  root.append(groupList);
+
+  const active = state.groups.find((group) => group.id === state.activeGroupId);
+  const activeTitle = document.createElement("h3");
+  activeTitle.className = "mb-3 text-base font-extrabold text-gold";
+  activeTitle.textContent = active?.id === "00000000-0000-0000-0000-000000000001" ? "טבלת כולם" : `קבוצת ${active?.name || ""}`;
+  root.append(activeTitle);
+
   if (!state.board.length) {
-    empty(root, "עדיין אין שחקנים בטבלה");
+    empty(root, "עדיין אין שחקנים בקבוצה הזו");
     return;
   }
-  root.replaceChildren();
   state.board.forEach((row, index) => {
     const item = document.createElement("div");
     const mine = row.id === state.user?.id;
@@ -652,12 +752,15 @@ async function refreshBets() {
 }
 
 async function refreshBoard() {
-  const { data, error } = await supabase.from("profiles").select("id, username, balance").eq("is_deleted", false).order("balance", { ascending: false }).limit(50);
-  if (error) {
-    toast(cleanError(error), "error");
-    return;
+  const { data: groups, error: groupsError } = await supabase.rpc("groups_list");
+  if (groupsError) { toast(cleanError(groupsError),"error"); return; }
+  state.groups = Array.isArray(groups) ? groups : [];
+  if (!state.groups.some((group) => group.id === state.activeGroupId && group.is_member)) {
+    state.activeGroupId = "00000000-0000-0000-0000-000000000001";
   }
-  state.board = data || [];
+  const { data, error } = await supabase.rpc("groups_leaderboard", { p_group_id: state.activeGroupId });
+  if (error) { toast(cleanError(error),"error"); return; }
+  state.board = Array.isArray(data) ? data : [];
   renderBoard();
 }
 
@@ -676,7 +779,9 @@ async function refreshAdmin() {
     const balance = document.createElement("span"); balance.className = "font-bold text-gold"; balance.textContent = `₪${money(user.balance)}`; head.append(name,balance); card.append(head);
     const meta = document.createElement("p"); meta.className = "mb-3 text-xs text-mist"; meta.textContent = `הימורים פתוחים: ${user.pending_bets}`; card.append(meta);
     if (!user.is_deleted) {
-      const actions = document.createElement("div"); actions.className = "grid grid-cols-2 gap-2";
+      const actionDetails = document.createElement("details"); actionDetails.className = "mt-3 rounded-xl border border-slate-700/60 bg-ink/30 p-2";
+      const actionSummary = document.createElement("summary"); actionSummary.className = "cursor-pointer list-none px-2 py-2 text-sm font-bold text-slate-200"; actionSummary.textContent = "פעולות משתמש ▾";
+      const actions = document.createElement("div"); actions.className = "mt-2 grid grid-cols-2 gap-2";
       const reset = document.createElement("button"); reset.className = "rounded-xl bg-gold px-3 py-2 text-sm font-bold text-ink"; reset.textContent = "איפוס ל־1,000 ₪";
       reset.addEventListener("click", async () => { if (!confirm(`לאפס את היתרה של ${user.username} ל־1,000 ₪? ההימורים הפתוחים יישארו ללא שינוי.`)) return; const r=await supabase.rpc("admin_set_balance",{p_user_id:user.id,p_balance:1000,p_reason:"reset_to_1000"}); if(r.error) toast(cleanError(r.error),"error"); else { toast("היתרה אופסה; ההימורים נשארו ללא שינוי"); refreshAdmin(); refreshBoard(); } });
       const manual = document.createElement("button"); manual.className = "rounded-xl border border-slate-600 px-3 py-2 text-sm"; manual.textContent = "קביעת יתרה";
@@ -685,7 +790,7 @@ async function refreshAdmin() {
       history.addEventListener("click", async () => { const r=await supabase.rpc("admin_user_bets",{p_user_id:user.id}); if(r.error){toast(cleanError(r.error),"error");return;} const lines=(r.data||[]).slice(0,12).map(b=>`#${b.id} · ₪${money(b.bet_amount)} · ${b.status} · יחס ${b.odds}`).join("\n"); alert(lines||"אין הימורים למשתמש זה"); });
       const del = document.createElement("button"); del.className = "rounded-xl border border-rose-500/50 px-3 py-2 text-sm text-rose-300"; del.textContent = "מחיקת משתמש";
       del.addEventListener("click", async () => { if(!confirm(`לסמן את ${user.username} כמחוק? היסטוריית ההימורים תישמר והוא יוסתר מהטבלה.`))return; const r=await supabase.rpc("admin_soft_delete_user",{p_user_id:user.id}); if(r.error)toast(cleanError(r.error),"error");else{toast("המשתמש סומן כמחוק וההיסטוריה נשמרה");refreshAdmin();refreshBoard();} });
-      actions.append(reset,manual,history,del); card.append(actions);
+      actions.append(reset,manual,history,del); actionDetails.append(actionSummary,actions); card.append(actionDetails);
     }
     root.append(card);
   });

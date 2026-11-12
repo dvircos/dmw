@@ -360,7 +360,6 @@ def main() -> None:
                 return
         sync.sync_fixtures(args.days)
     else:
-        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
         sync.sync_results()
 
 

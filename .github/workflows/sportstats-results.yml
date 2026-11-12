@@ -9,9 +9,8 @@ on:
       - ".github/workflows/sportstats-results.yml"
   # Allow a one-off manual run without changing the recurring schedule.
   workflow_dispatch:
-  # Poll every 20 minutes; active leagues are selected dynamically by the script.
-  schedule:
-    - cron: "7,27,47 * * * *"
+  # Recurring polling is dispatched by Supabase Cron to avoid relying on
+  # GitHub's best-effort scheduled-event delivery.
 
 permissions:
   contents: read

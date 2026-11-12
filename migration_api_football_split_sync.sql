@@ -1,6 +1,6 @@
 -- API-Football split sync: preserve internal game IDs and existing bets.
 alter table public.games
-  add column if not exists api_football_fixture_id bigint;
+  add column if not exists api_football_fixture_id bigint,\n  add column if not exists api_home_team_name text,\n  add column if not exists api_away_team_name text;
 
 create unique index if not exists games_api_football_fixture_id_uidx
   on public.games(api_football_fixture_id)

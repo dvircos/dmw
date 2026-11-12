@@ -288,6 +288,28 @@ class SportStatsSync:
         return rows
 
     @staticmethod
+    def live_score(row: dict[str, Any]) -> tuple[int, int, int | None, str] | None:
+        """Return a score only when the provider explicitly marks the match in play."""
+        status = str(row.get("status") or "").strip().upper()
+        status_code = str(row.get("status_code") or "").strip().lower()
+        if status == "HT":
+            minute = None
+        elif re.fullmatch(r"\d{1,3}(?:\+\d{1,2})?", status):
+            raw_minute = row.get("minute")
+            minute = raw_minute if isinstance(raw_minute, int) and 0 <= raw_minute <= 200 else int(status.split("+", 1)[0])
+        elif status in {"LIVE", "1H", "2H", "ET", "BT", "P"} and status_code in {"live", "in_progress", "halftime"}:
+            raw_minute = row.get("minute")
+            minute = raw_minute if isinstance(raw_minute, int) and 0 <= raw_minute <= 200 else None
+        else:
+            return None
+        home = row.get("home_team") or {}
+        away = row.get("away_team") or {}
+        hs, aws = home.get("score"), away.get("score")
+        if not (isinstance(hs, int) and isinstance(aws, int) and hs >= 0 and aws >= 0):
+            return None
+        return hs, aws, minute, status
+
+    @staticmethod
     def final_score(row: dict[str, Any]) -> tuple[int, int] | None:
         # Only FT is accepted: AET/PEN are intentionally excluded because
         # settlement must use the regular-time score, not extra time/shootouts.
@@ -338,16 +360,29 @@ class SportStatsSync:
                 if match_code not in by_code:
                     continue
                 score = self.final_score(row)
-                if score is None:
+                if score is not None:
+                    result = self.rpc("sync_sportstats_result", {
+                        "p_match_code": match_code,
+                        "p_home_score": score[0],
+                        "p_away_score": score[1],
+                    })
+                    confirmed += 1
+                    log.info("Confirmed SportStatsAPI final result %s: %s-%s; settlement RPC=%s",
+                             match_code, score[0], score[1], result)
                     continue
-                result = self.rpc("sync_sportstats_result", {
+
+                live = self.live_score(row)
+                if live is None:
+                    continue
+                result = self.rpc("sync_sportstats_live_score", {
                     "p_match_code": match_code,
-                    "p_home_score": score[0],
-                    "p_away_score": score[1],
+                    "p_home_score": live[0],
+                    "p_away_score": live[1],
+                    "p_live_minute": live[2],
+                    "p_live_status_text": live[3],
                 })
-                confirmed += 1
-                log.info("Confirmed SportStatsAPI result %s: %s-%s; RPC=%s",
-                         match_code, score[0], score[1], result)
+                log.info("Updated live SportStatsAPI score %s: %s-%s (%s); no settlement; RPC=%s",
+                         match_code, live[0], live[1], live[3], result)
 
         log.info("Results sync complete: %s results confirmed, %s provider requests.", confirmed, self.api_calls)
         return confirmed

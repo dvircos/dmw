@@ -324,7 +324,7 @@ class SportStatsSync:
         now = datetime.now(timezone.utc)
         games = self.fetch_unconfirmed_games(now)
         if not games:
-            log.info("No unconfirmed SportStatsAPI-linked games from today are in one of the five post-kickoff polling windows; 0 provider requests.")
+            log.info("No started, unconfirmed SportStatsAPI-linked games; 0 provider requests.")
             return 0
 
         league_codes = sorted({str(g["sportstats_league_code"]) for g in games if g.get("sportstats_league_code")})

@@ -28,6 +28,78 @@ PLACEHOLDERS = {"", "YOUR_SPORTSTATS_API_KEY_HERE"}
 log = logging.getLogger("sportstats-sync")
 
 
+
+# Hebrew display names and verified Football-Data crest IDs for the current
+# Premier League / La Liga clubs. National teams continue to use their flags.
+CLUBS = {
+    "ath bilbao": ("אתלטיק בילבאו", 77),
+    "athletic bilbao": ("אתלטיק בילבאו", 77),
+    "espanyol": ("אספניול", 80),
+    "manchester city": ("מנצ'סטר סיטי", 65),
+    "fulham": ("פולהאם", 63),
+    "alaves": ("אלאבס", 263),
+    "deportivo la coruna": ("דפורטיבו לה קורוניה", 560),
+    "tottenham": ("טוטנהאם", 73),
+    "tottenham hotspur": ("טוטנהאם", 73),
+    "ipswich": ("איפסוויץ'", 349),
+    "chelsea": ("צ'לסי", 61),
+    "leeds": ("לידס יונייטד", 341),
+    "coventry": ("קובנטרי", 1076),
+    "crystal palace": ("קריסטל פאלאס", 354),
+    "aston villa": ("אסטון וילה", 58),
+    "sunderland": ("סנדרלנד", 71),
+    "bournemouth": ("בורנמות'", 1044),
+    "nottingham": ("נוטינגהאם פורסט", 351),
+    "nottingham forest": ("נוטינגהאם פורסט", 351),
+    "rayo vallecano": ("ראיו וייקאנו", 87),
+    "valencia": ("ולנסיה", 95),
+    "newcastle": ("ניוקאסל", 67),
+    "newcastle united": ("ניוקאסל", 67),
+    "arsenal": ("ארסנל", 57),
+    "sevilla": ("סביליה", 559),
+    "betis": ("בטיס", 90),
+    "real betis": ("בטיס", 90),
+    "real madrid": ("ריאל מדריד", 86),
+    "celta vigo": ("סלטה ויגו", 558),
+    "barcelona": ("ברצלונה", 81),
+    "villarreal": ("ויאריאל", 94),
+    "hull": ("האל סיטי", 64),
+    "brighton": ("ברייטון", 397),
+    "racing santander": ("ראסינג סנטנדר", 745),
+    "real sociedad": ("ריאל סוסיאדד", 92),
+    "liverpool": ("ליברפול", 64),
+    "manchester utd": ("מנצ'סטר יונייטד", 66),
+    "manchester united": ("מנצ'סטר יונייטד", 66),
+    "osasuna": ("אוסאסונה", 79),
+    "malaga": ("מלאגה", 98),
+    "getafe": ("חטאפה", 82),
+    "atl. madrid": ("אתלטיקו מדריד", 78),
+    "atletico madrid": ("אתלטיקו מדריד", 78),
+    "brentford": ("ברנטפורד", 402),
+    "everton": ("אברטון", 62),
+    "levante": ("לבאנטה", 88),
+    "elche": ("אלצ'ה", 285),
+    "nottingham forest": ("נוטינגהאם פורסט", 351),
+    "leicester": ("לסטר סיטי", 338),
+    "west ham": ("ווסטהאם", 563),
+    "wolves": ("וולבס", 76),
+    "wolverhampton": ("וולבס", 76),
+}
+
+def team_display(name: str) -> str:
+    entry = CLUBS.get(normalize(name))
+    return entry[0] if entry else hebrew_name(name)
+
+def team_logo_url(team: dict[str, Any], name: str) -> str | None:
+    # Prefer a provider-supplied image URL when present in the list payload.
+    for key in ("logo", "image", "badge", "crest", "logo_url", "image_url"):
+        value = team.get(key)
+        if isinstance(value, str) and value.startswith("https://"):
+            return value
+    entry = CLUBS.get(normalize(name))
+    return f"https://crests.football-data.org/{entry[1]}.png" if entry else safe_team_flag(name)
+
+
 def safe_team_flag(name: str) -> str | None:
     """Do not replace a real existing club badge with the generic unknown flag."""
     if normalize(name) not in FLAGS:
@@ -118,7 +190,7 @@ class SportStatsSync:
             raise RuntimeError(f"Supabase upsert_sportstats_fixture failed: HTTP {response.status_code}: {response.text[:300]}")
         return response.json() if response.content else None
 
-    def sync_fixtures(self, days: int = 14) -> int:
+    def sync_fixtures(self, days: int = 7) -> int:
         now = datetime.now(timezone.utc)
         start, end = now.date().isoformat(), (now + timedelta(days=days)).date().isoformat()
         imported = 0
@@ -138,10 +210,10 @@ class SportStatsSync:
                     "p_away_team_code": match["away_code"],
                     "p_api_home_name": home,
                     "p_api_away_name": away,
-                    "p_home_team": hebrew_name(home),
-                    "p_away_team": hebrew_name(away),
-                    "p_home_flag": safe_team_flag(home),
-                    "p_away_flag": safe_team_flag(away),
+                    "p_home_team": team_display(home),
+                    "p_away_team": team_display(away),
+                    "p_home_flag": team_logo_url(raw.get("home_team") or {}, home),
+                    "p_away_flag": team_logo_url(raw.get("away_team") or {}, away),
                     "p_match_time": match["kickoff"],
                     "p_round_name": f"{label}|{match['league_name']}",
                 })
@@ -154,7 +226,7 @@ class SportStatsSync:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=("fixtures",))
-    parser.add_argument("--days", type=int, default=14)
+    parser.add_argument("--days", type=int, default=7)
     args = parser.parse_args()
     if not 1 <= args.days <= 31:
         parser.error("--days must be between 1 and 31")

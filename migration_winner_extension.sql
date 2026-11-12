@@ -49,8 +49,8 @@ begin
            draw_odds = v_draw_odds,
            away_odds = v_away_odds,
            odds_locked = true
-     where (lower(trim(home_team)) = lower(v_home) or lower(trim(api_home_team_name)) = lower(v_home))
-       and (lower(trim(away_team)) = lower(v_away) or lower(trim(api_away_team_name)) = lower(v_away))
+     where (lower(trim(home_team)) = lower(v_home) or lower(trim(sportstats_api_home_name)) = lower(v_home))
+       and (lower(trim(away_team)) = lower(v_away) or lower(trim(sportstats_api_away_name)) = lower(v_away))
        and abs(extract(epoch from (match_time - v_kickoff))) <= 1200
        and status = 'upcoming'
        and match_time > now() + interval '5 minutes'

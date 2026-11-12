@@ -1,0 +1,35 @@
+name: One-time existing Nations League mapping
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/map-existing-nations.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: one-time-existing-nations-mapping
+  cancel-in-progress: false
+
+jobs:
+  map:
+    if: github.event.head_commit.message == 'Run one-time Nations League mapping'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+      - name: Map API-Football IDs to existing Nations League games only
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          API_KEY: ${{ secrets.API_KEY }}
+        run: python sync_api_football.py map-existing-nations

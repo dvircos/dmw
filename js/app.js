@@ -1,3 +1,8 @@
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.1/+esm";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "./config.js";
+import { BET_STATUS, GAME_STATUS, SELECTION, canBet, canCancel, canEdit, countdownLabel, leagueKey, money, slipLegs, when } from "./format.js";
+import { toast } from "./toast.js";
+
 
 
 

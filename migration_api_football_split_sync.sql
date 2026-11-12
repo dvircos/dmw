@@ -44,8 +44,9 @@ begin
       and lower(trim(away_team)) in (lower(trim(p_away_team)), lower(trim(p_api_away_name)))
       and abs(extract(epoch from (match_time - p_match_time))) <= 2592000
       and (
-        split_part(coalesce(round_name, ''), '|', 1) = split_part(p_round_name, '|', 1)
-        or (round_name is null and abs(extract(epoch from (match_time - p_match_time))) <= 86400)
+        split_part(coalesce(round_name, ''), '|', 1) = split_part(coalesce(p_round_name, ''), '|', 1)
+        or (position('|' in coalesce(round_name, '')) = 0
+            and abs(extract(epoch from (match_time - p_match_time))) <= 86400)
       )
       and status in ('upcoming','live')
       and coalesce(result_confirmed,false) = false

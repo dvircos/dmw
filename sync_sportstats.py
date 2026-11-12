@@ -165,6 +165,8 @@ def parse_match(row: dict[str, Any], league: dict[str, str]) -> dict[str, Any] |
         "league_name": str(row.get("league_name") or league["name"]),
         "home_name": home_name,
         "away_name": away_name,
+        "home_display": team_display(home_name),
+        "away_display": team_display(away_name),
         "home_code": home_code,
         "away_code": away_code,
         "kickoff": kickoff.astimezone(timezone.utc).isoformat(),

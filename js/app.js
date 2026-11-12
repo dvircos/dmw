@@ -897,7 +897,73 @@ async function refreshAdmin() {
   } else {
     const warning = document.createElement("p");
     warning.className = "mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200";
-    warning.textContent = "כדי לנהל סוגי הימורים יש להריץ את migration_dynamic_winner_markets.sql ב־Supabase.";
+    warning.textContent = "לא ניתן לטעון את הגדרות סוגי ההימורים. בדוק את מיגרציות Winner ב־Supabase.";
+    root.append(warning);
+  }
+  const unsettledResult = await supabase
+    .from("winner_markets")
+    .select("id,market_key,market_label,outcomes,games!inner(home_team,away_team,status,result_confirmed)")
+    .eq("active", true)
+    .is("settled_at", null)
+    .eq("games.status", "finished")
+    .eq("games.result_confirmed", true)
+    .order("id", { ascending: false })
+    .limit(80);
+  const manualMarkets = (unsettledResult.data || []).filter((market) =>
+    !["handicap_ft", "total_goals_2_5", "btts"].includes(market.market_key)
+  );
+  if (!unsettledResult.error && manualMarkets.length) {
+    const settleCard = document.createElement("section");
+    settleCard.className = "mb-5 rounded-2xl border border-amber-400/30 bg-panel p-4";
+    const settleTitle = document.createElement("h3");
+    settleTitle.className = "mb-1 text-lg font-extrabold text-amber-200";
+    settleTitle.textContent = "הכרעת שווקים שהסתיימו";
+    const settleNote = document.createElement("p");
+    settleNote.className = "mb-3 text-xs text-mist";
+    settleNote.textContent = "שווקים כמו קרנות, מבקיע ראשון ותוצאות מחצית דורשים נתון שלא מגיע מסנכרון התוצאה הרגיל. בחר את התוצאה הזוכה לאחר בדיקה.";
+    settleCard.append(settleTitle, settleNote);
+    manualMarkets.forEach((market) => {
+      const game = market.games || {};
+      const item = document.createElement("div");
+      item.className = "border-t border-slate-700/60 py-3";
+      const heading = document.createElement("p");
+      heading.className = "mb-2 text-sm font-bold text-slate-100";
+      heading.textContent = (game.home_team || "משחק") + " – " + (game.away_team || "") + " · " + market.market_label;
+      item.append(heading);
+      const outcomes = document.createElement("div");
+      outcomes.className = "grid grid-cols-2 gap-2";
+      (Array.isArray(market.outcomes) ? market.outcomes : []).forEach((outcome) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "rounded-lg border border-slate-700 bg-ink/50 px-2 py-2 text-xs text-slate-200";
+        button.textContent = (outcome.label || outcome.selection) + " · " + Number(outcome.price).toFixed(2);
+        button.addEventListener("click", async () => {
+          if (!confirm("לקבוע ש-" + (outcome.label || outcome.selection) + " היא התוצאה הזוכה בשוק הזה?")) return;
+          button.disabled = true;
+          const result = await supabase.rpc("admin_settle_winner_market", {
+            p_market_id: Number(market.id),
+            p_winning_selection: outcome.selection
+          });
+          if (result.error) {
+            button.disabled = false;
+            toast(cleanError(result.error), "error");
+            return;
+          }
+          toast("השוק הוכרע והטפסים עודכנו");
+          await refreshAdmin();
+          await refreshBets();
+          await refreshBoard();
+        });
+        outcomes.append(button);
+      });
+      item.append(outcomes);
+      settleCard.append(item);
+    });
+    root.append(settleCard);
+  } else if (unsettledResult.error) {
+    const warning = document.createElement("p");
+    warning.className = "mb-4 text-xs text-rose-300";
+    warning.textContent = "לא ניתן לטעון שווקים להכרעה: " + cleanError(unsettledResult.error);
     root.append(warning);
   }
   (Array.isArray(data) ? data : []).forEach(user => {

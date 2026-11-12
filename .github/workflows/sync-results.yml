@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: api-football-evening-results
+  group: existing-nations-evening-results
   cancel-in-progress: false
 
 jobs:

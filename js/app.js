@@ -1330,19 +1330,53 @@ $("logout").addEventListener("click", () => supabase.auth.signOut());
 $("refresh").addEventListener("click", () => refreshAll().then(() => toast("הנתונים עודכנו")));
 document.querySelectorAll(".nav-btn").forEach((button) => button.addEventListener("click", () => showTab(button.dataset.tab)));
 let leagueSwipeStart = null;
-$("view-games").addEventListener("touchstart", (event) => {
+const gamesSwipeSurface = $("view-games");
+gamesSwipeSurface.style.touchAction = "pan-y";
+gamesSwipeSurface.addEventListener("touchstart", (event) => {
   if (!event.touches || event.touches.length !== 1) { leagueSwipeStart = null; return; }
-  const target = event.target;
-  if (target.closest("button, input, select, textarea, a")) { leagueSwipeStart = null; return; }
-  leagueSwipeStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+  if (event.target.closest("input, select, textarea, [data-no-league-swipe]")) {
+    leagueSwipeStart = null;
+    return;
+  }
+  leagueSwipeStart = {
+    x: event.touches[0].clientX,
+    y: event.touches[0].clientY,
+    moved: false
+  };
 }, { passive: true });
-$("view-games").addEventListener("touchend", (event) => {
+
+gamesSwipeSurface.addEventListener("touchmove", (event) => {
+  if (!leagueSwipeStart || !event.touches || event.touches.length !== 1) return;
+  const dx = event.touches[0].clientX - leagueSwipeStart.x;
+  const dy = event.touches[0].clientY - leagueSwipeStart.y;
+  if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.15) {
+    leagueSwipeStart.moved = true;
+    // Claim horizontal movement so it does not fight with vertical page scrolling.
+    event.preventDefault();
+  }
+}, { passive: false });
+
+gamesSwipeSurface.addEventListener("touchend", (event) => {
   if (!leagueSwipeStart || !event.changedTouches?.length) return;
   const dx = event.changedTouches[0].clientX - leagueSwipeStart.x;
   const dy = event.changedTouches[0].clientY - leagueSwipeStart.y;
+  const wasHorizontal = leagueSwipeStart.moved;
   leagueSwipeStart = null;
-  if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+  if (!wasHorizontal || Math.abs(dx) < 38 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
   const leagueButtons = [...document.querySelectorAll(".league-tab")];
+  const leagues = leagueButtons.map((button) => button.dataset.league);
+  const current = leagues.indexOf(state.league);
+  if (current < 0 || !leagues.length) return;
+  const next = (current + (dx < 0 ? 1 : -1) + leagues.length) % leagues.length;
+  state.league = leagues[next];
+  paintLeagueTabs();
+  leagueButtons[next]?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  renderGames();
+}, { passive: true });
+
+gamesSwipeSurface.addEventListener("touchcancel", () => { leagueSwipeStart = null; }, { passive: true });
+
+document.querySelectorAll(".league-tab")];
   const leagues = leagueButtons.map((button) => button.dataset.league);
   const current = leagues.indexOf(state.league);
   if (current < 0 || !leagues.length) return;

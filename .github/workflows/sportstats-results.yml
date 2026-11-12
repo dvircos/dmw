@@ -23,7 +23,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements.txt
-      - name: Sync confirmed full-time results
+      - name: Sync live scores and confirmed full-time results
         env:
           SPORTSTATS_API_KEY: ${{ secrets.SPORTSTATS_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 from typing import Any
 
 import requests
-from main import FLAGS, flag_url, hebrew_name, normalize
+from team_utils import FLAGS, flag_url, hebrew_name, normalize
 
 API_BASE = "https://api.sportstatsapi.com/api/v1"
 # Confirmed from the completed league-catalogue diagnostic; do not rescan catalogue.
@@ -213,6 +213,11 @@ class SportStatsSync:
         imported = 0
         for code, label, name in LEAGUES:
             league = {"code": code, "label": label, "name": name}
+            # Reserve quota before every SportStatsAPI request, including fixture imports.
+            allowed = self.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
+            if allowed is not True:
+                log.warning("Daily provider quota reached; stopping fixture import before another request.")
+                break
             rows = self.fetch_league(code, start, end)
             for raw in rows:
                 match = parse_match(raw, league)
@@ -337,6 +342,11 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     sync = SportStatsSync()
     if args.mode == "fixtures":
+        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
+            if local_now.hour != 6:
+                log.info("Outside the scheduled Israel 06:00 fixture import; no provider calls.")
+                return
         sync.sync_fixtures(args.days)
     else:
         if os.environ.get("GITHUB_EVENT_NAME") == "schedule":

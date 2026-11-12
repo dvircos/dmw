@@ -1,4 +1,5 @@
 name: SportStatsAPI fixture import
+# Single controlled import on first rollout; no recurring schedule.
 
 on:
   push:

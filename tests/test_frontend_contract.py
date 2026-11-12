@@ -64,7 +64,7 @@ class FrontendContractTests(unittest.TestCase):
         # The visible left-to-right score must therefore be away-home.
         self.assertIn("teams.append(home, score, away)", app)
         self.assertIn("${game.away_score} - ${game.home_score}", app)
-        self.assertIn('[["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]]', app)
+        self.assertIn('[["1",game.home_odds,"1 · בית"],["X",game.draw_odds,"X · תיקו"],["2",game.away_odds,"2 · חוץ"]]', app)
         self.assertIn('if (selection === "1") return Number(game.home_odds);', app)
         self.assertIn('return Number(game.away_odds);', app)
 
@@ -74,8 +74,8 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn("return hs, aws", sync)
         self.assertIn('"p_home_score": score[0]', sync)
         self.assertIn('"p_away_score": score[1]', sync)
-        self.assertIn("p_home_score > v_game.away_score", migration)
-        self.assertIn("p_home_score < v_game.away_score", migration)
+        self.assertIn("v_bet.bet_selection = '1' and v_game.home_score > v_game.away_score", migration)
+        self.assertIn("v_bet.bet_selection = '2' and v_game.home_score < v_game.away_score", migration)
 
     def test_winner_import_allowlist_only_accepts_three_requested_extra_markets(self):
         migration = (ROOT / "migration_winner_market_allowlist_and_admin_username.sql").read_text(encoding="utf-8")

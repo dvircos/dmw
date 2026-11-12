@@ -42,7 +42,10 @@ begin
     from public.games
     where lower(trim(home_team)) in (lower(trim(p_home_team)), lower(trim(p_api_home_name)))
       and lower(trim(away_team)) in (lower(trim(p_away_team)), lower(trim(p_api_away_name)))
-      and abs(extract(epoch from (match_time - p_match_time))) <= 5400
+      and abs(extract(epoch from (match_time - p_match_time))) <= 2592000
+      and (round_name is null or split_part(round_name, '|', 1) = split_part(p_round_name, '|', 1))
+      and status in ('upcoming','live')
+      and coalesce(result_confirmed,false) = false
       and (api_football_fixture_id is null or api_football_fixture_id = p_api_fixture_id)
     order by abs(extract(epoch from (match_time - p_match_time)))
     limit 1

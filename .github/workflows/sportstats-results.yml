@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
   # Avoid the top/bottom of the hour to reduce scheduled-run contention.
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "*/20 * * * *"
 
 permissions:
   contents: read

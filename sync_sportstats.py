@@ -252,12 +252,16 @@ class SportStatsSync:
         return imported
 
     def fetch_unconfirmed_games(self, now: datetime) -> list[dict[str, Any]]:
+        # A league is polled only while it has a match whose kickoff was
+        # within the last two hours. The scheduled workflow runs every 30 min.
+        window_start = now - timedelta(hours=2)
         params = {
             "select": "id,sportstats_match_code,sportstats_league_code,match_time",
             "sportstats_match_code": "not.is.null",
             "sportstats_league_code": "not.is.null",
             "result_confirmed": "eq.false",
-            "match_time": f"lt.{now.isoformat()}",
+            "match_time": f"gte.{window_start.isoformat()}",
+            "and": f"(match_time.lt.{now.isoformat()})",
             "status": "in.(upcoming,live)",
             "order": "match_time.asc",
             "limit": "500",
@@ -297,7 +301,7 @@ class SportStatsSync:
         now = datetime.now(timezone.utc)
         games = self.fetch_unconfirmed_games(now)
         if not games:
-            log.info("No past, unconfirmed SportStatsAPI-linked games; 0 provider requests.")
+            log.info("No unconfirmed SportStatsAPI-linked games kicked off in the last 2 hours; 0 provider requests.")
             return 0
 
         league_codes = sorted({str(g["sportstats_league_code"]) for g in games if g.get("sportstats_league_code")})
@@ -307,7 +311,7 @@ class SportStatsSync:
             log.info("No supported SportStatsAPI leagues among pending games; 0 provider requests.")
             return 0
 
-        start = (now - timedelta(days=7)).date().isoformat()
+        start = (now - timedelta(hours=2)).date().isoformat()
         end = now.date().isoformat()
         by_code = {str(g["sportstats_match_code"]): g for g in games}
         confirmed = 0
@@ -357,10 +361,6 @@ def main() -> None:
         sync.sync_fixtures(args.days)
     else:
         if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
-            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
-            if local_now.hour not in {21, 22, 23, 0}:
-                log.info("Outside scheduled Israel hours 21:00, 22:00, 23:00, 00:00; no provider calls.")
-                return
         sync.sync_results()
 
 

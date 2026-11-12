@@ -240,7 +240,9 @@ function renderGames() {
         group.className = "rounded-xl border border-slate-700/60 bg-panel p-3";
         const title = document.createElement("h3");
         title.className = "mb-3 text-sm font-extrabold text-slate-100";
-        title.textContent = market.market_label || "אפשרויות הימור";
+        title.textContent = market.market_key === "handicap_ft" && market.line != null
+          ? `${market.market_label || "הפרשי שערים"} (${Number(market.line) > 0 ? "+" : ""}${Number(market.line)})`
+          : market.market_label || "אפשרויות הימור";
         const outcomes = Array.isArray(market.outcomes) ? market.outcomes : [];
         const grid = document.createElement("div");
         grid.className = "grid grid-cols-2 gap-2";

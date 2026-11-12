@@ -19,4 +19,4 @@ jobs:
           python-version: "3.12"
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
-      - run: python -m py_compile main.py sync_api_football.py sync_existing_nations.py
+      - run: python -m py_compile main.py sync_api_football.py sync_existing_nations.py sync_sportstats.py

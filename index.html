@@ -604,6 +604,40 @@
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
       }
+
+      /* Admin forms are rendered dynamically; Tailwind's CDN scanner cannot see their classes.
+         Set control colors explicitly so typed values never inherit white-on-white defaults. */
+      #view-admin input:not([type="checkbox"]):not([type="radio"]),
+      #view-admin select,
+      #view-admin textarea {
+        color:#f8fafc !important;
+        -webkit-text-fill-color:#f8fafc !important;
+        background-color:#0f172a !important;
+        border:1px solid #64748b !important;
+        caret-color:#f8fafc !important;
+        color-scheme:dark;
+      }
+      #view-admin input::placeholder,
+      #view-admin textarea::placeholder {
+        color:#94a3b8 !important;
+        -webkit-text-fill-color:#94a3b8 !important;
+        opacity:1 !important;
+      }
+      body[data-theme="light"] #view-admin input:not([type="checkbox"]):not([type="radio"]),
+      body[data-theme="light"] #view-admin select,
+      body[data-theme="light"] #view-admin textarea {
+        color:#172554 !important;
+        -webkit-text-fill-color:#172554 !important;
+        background-color:#ffffff !important;
+        border-color:#94a3b8 !important;
+        caret-color:#172554 !important;
+        color-scheme:light;
+      }
+      body[data-theme="light"] #view-admin input::placeholder,
+      body[data-theme="light"] #view-admin textarea::placeholder {
+        color:#64748b !important;
+        -webkit-text-fill-color:#64748b !important;
+      }
     </style>
   </head>
   <body class="min-h-screen text-slate-50" data-theme="dark">

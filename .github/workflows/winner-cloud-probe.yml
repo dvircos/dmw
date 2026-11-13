@@ -1,0 +1,29 @@
+name: Winner cloud read-only probe
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "tests/winner_cloud_probe.py"
+      - ".github/workflows/winner-cloud-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Playwright
+        run: |
+          python -m pip install --disable-pip-version-check playwright
+          python -m playwright install --with-deps chromium
+      - name: Probe Winner without changing any data
+        run: python tests/winner_cloud_probe.py

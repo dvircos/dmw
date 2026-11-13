@@ -1739,19 +1739,49 @@ async function renderTournamentView() {
 async function renderTournamentDetail(root,id){
   const r=await supabase.rpc("tournament_detail",{p_tournament_id:id});if(r.error){state.tournamentSelectedId=null;empty(root,cleanError(r.error));return;}
   const t=r.data;
-  const back=document.createElement("button");back.className="mb-3 rounded-xl border border-slate-600 px-3 py-2 text-sm";back.textContent="→ חזרה";back.onclick=()=>{state.tournamentSelectedId=null;renderTournamentView();};
+  const back=document.createElement("button");back.className="mb-4 rounded-xl border border-slate-600 px-4 py-3 text-sm font-bold";back.textContent="→ חזרה";back.onclick=()=>{state.tournamentSelectedId=null;renderTournamentView();};
   const h=document.createElement("h2");h.className="mb-3 text-xl font-extrabold text-gold";h.textContent=t.name;root.append(back,h);
-  const summary=document.createElement("p");summary.className="mb-3 rounded-xl bg-panel p-3 text-sm";summary.textContent=t.participants+" משתתפים · "+t.games.length+" משחקים · קופה ₪"+money(t.prize_pool);root.append(summary);
-  if(!t.joined&&t.status==="open"){const b=document.createElement("button");b.className="mb-3 w-full rounded-xl bg-gold p-3 font-bold text-ink";b.textContent="הצטרפות · ₪"+money(t.entry_fee);b.onclick=async()=>{const x=await supabase.rpc("tournament_join",{p_tournament_id:id});if(x.error)toast(cleanError(x.error),"error");else{setBalance(x.data.balance);toast("הצטרפת לטורניר");renderTournamentView();}};root.append(b);}
+  const summary=document.createElement("p");summary.className="mb-4 rounded-xl bg-panel p-3 text-sm";summary.textContent=t.participants+" משתתפים · "+t.games.length+" משחקים · קופה ₪"+money(t.prize_pool);root.append(summary);
+  if(!t.joined&&t.status==="open"){
+    const joinCard=document.createElement("section");joinCard.className="mb-4 rounded-2xl border-2 border-gold bg-panel p-4 shadow-lg";
+    const joinTitle=document.createElement("h3");joinTitle.className="text-base font-extrabold text-gold";joinTitle.textContent="רוצה להשתתף בטורניר?";
+    const joinText=document.createElement("p");joinText.className="mt-1 text-sm text-slate-200";joinText.textContent="דמי כניסה: ₪"+money(t.entry_fee)+" · לאחר ההצטרפות תוכל למלא ניחושים לכל המשחקים";
+    const b=document.createElement("button");b.type="button";b.className="mt-3 w-full rounded-xl bg-gold px-4 py-3 text-base font-extrabold text-ink shadow-md active:scale-[0.99]";b.textContent="הצטרפות לטורניר";
+    b.onclick=async()=>{b.disabled=true;b.textContent="מצטרף...";const x=await supabase.rpc("tournament_join",{p_tournament_id:id});if(x.error){toast(cleanError(x.error),"error");b.disabled=false;b.textContent="הצטרפות לטורניר";}else{setBalance(x.data.balance);toast("הצטרפת לטורניר");renderTournamentView();}};
+    joinCard.append(joinTitle,joinText,b);root.append(joinCard);
+  } else if(t.joined){
+    const joined=document.createElement("p");joined.className="mb-4 rounded-xl border border-emerald-700/50 bg-emerald-950/20 p-3 text-sm font-bold text-emerald-300";joined.textContent="✓ נרשמת לטורניר — אפשר למלא או לעדכן את הניחושים";root.append(joined);
+  }
   const picks=[];
   (t.games||[]).forEach(g=>{
-    const c=document.createElement("article");c.className="mb-2 rounded-xl border border-slate-700/50 bg-panel p-3";
-    const p=document.createElement("p");p.className="mb-2 text-xs text-mist";p.textContent=when(g.match_time)+(g.status==="finished"?" · "+g.home_score+"-"+g.away_score:"");
-    const n=document.createElement("p");n.className="mb-3 text-sm font-bold";n.textContent=g.home_team+" – "+g.away_team;c.append(p,n);
-    if(t.joined){const row=document.createElement("div");row.className="grid grid-cols-3 gap-2";["1","X","2"].forEach(v=>{const b=document.createElement("button");b.className="rounded-lg border px-2 py-2 text-sm font-bold "+(g.prediction===v?"border-gold bg-gold text-ink":"border-slate-600");b.textContent=v;b.disabled=g.status!=="upcoming"||new Date(g.match_time)<=new Date()||!["open","locked"].includes(t.status);b.onclick=()=>{const old=picks.find(x=>x.game_id===g.id);if(old)old.selection=v;else picks.push({game_id:g.id,selection:v});row.querySelectorAll("button").forEach(x=>x.className="rounded-lg border border-slate-600 px-2 py-2 text-sm font-bold");b.className="rounded-lg border border-gold bg-gold px-2 py-2 text-sm font-bold text-ink";};row.append(b);});c.append(row);if(g.prediction){const saved=document.createElement("p");saved.className="mt-2 text-xs text-mist";saved.textContent="ניחוש שמור: "+g.prediction;c.append(saved);}}
-    root.append(c);
+    const mainGame=(state.games||[]).find(x=>Number(x.id)===Number(g.id))||{};
+    const c=document.createElement("article");c.className="game-card mb-3 overflow-hidden rounded-2xl border border-slate-700/60 bg-panel shadow-lg";
+    const body=document.createElement("div");body.className="game-card-body p-3";
+    const head=document.createElement("div");head.className="game-match-meta-row";
+    const time=document.createElement("span");time.className="game-match-time";time.textContent=when(g.match_time);
+    const status=document.createElement("span");status.className="game-status"+(g.status==="live"?" is-live":g.status==="finished"?" is-finished":"");status.textContent=g.status==="live"?"● חי":g.status==="finished"?"הסתיים":"טרם החל";head.append(time,status);
+    const teams=document.createElement("div");teams.className="game-teams-row mt-3";teams.dir="rtl";
+    const home=document.createElement("div");home.className="game-team-inline";
+    const homeName=document.createElement("span");homeName.className="game-team-name";homeName.textContent=g.home_team||"קבוצה ביתית";home.append(homeName,flag(g.home_flag||mainGame.home_flag));
+    const away=document.createElement("div");away.className="game-team-inline away";away.append(flag(g.away_flag||mainGame.away_flag));
+    const awayName=document.createElement("span");awayName.className="game-team-name";awayName.textContent=g.away_team||"קבוצת חוץ";away.append(awayName);
+    const vs=document.createElement("span");vs.className="game-versus";vs.dir="ltr";vs.textContent=g.status==="live"||g.status==="finished"?((g.away_score??0)+" - "+(g.home_score??0)):"VS";
+    teams.append(home,vs,away);body.append(head,teams);
+    if(t.joined){
+      const caption=document.createElement("p");caption.className="mt-3 mb-2 text-center text-xs font-semibold text-mist";caption.textContent="בחר תוצאה: 1 — ניצחון "+(g.home_team||"המארחת")+" · X — תיקו · 2 — ניצחון "+(g.away_team||"האורחת");body.append(caption);
+      const row=document.createElement("div");row.className="grid grid-cols-3 gap-2";
+      [["1","1 · בית"],["X","X · תיקו"],["2","2 · חוץ"]].forEach(([v,label])=>{
+        const b=document.createElement("button");b.type="button";b.className="rounded-lg border px-2 py-2 text-sm font-extrabold "+(g.prediction===v?"border-gold bg-gold text-ink":"border-slate-600 bg-ink text-slate-100");b.textContent=label;b.setAttribute("aria-pressed",g.prediction===v?"true":"false");
+        b.disabled=g.status!=="upcoming"||new Date(g.match_time)<=new Date()||!["open","locked"].includes(t.status);
+        b.onclick=()=>{const old=picks.find(x=>x.game_id===g.id);if(old)old.selection=v;else picks.push({game_id:g.id,selection:v});row.querySelectorAll("button").forEach(x=>{x.className="rounded-lg border border-slate-600 bg-ink px-2 py-2 text-sm font-extrabold text-slate-100";x.setAttribute("aria-pressed","false");});b.className="rounded-lg border border-gold bg-gold px-2 py-2 text-sm font-extrabold text-ink";b.setAttribute("aria-pressed","true");};
+        row.append(b);
+      });
+      body.append(row);
+      if(g.prediction){const saved=document.createElement("p");saved.className="mt-2 text-center text-xs text-mist";saved.textContent="ניחוש שמור: "+g.prediction;body.append(saved);}
+    }
+    c.append(body);root.append(c);
   });
-  if(t.joined&&["open","locked"].includes(t.status)){const save=document.createElement("button");save.className="mb-4 w-full rounded-xl bg-gold p-3 font-bold text-ink";save.textContent="שמירת ניחושים";save.onclick=async()=>{if(!picks.length){toast("בחר לפחות ניחוש אחד","error");return;}const x=await supabase.rpc("tournament_save_predictions",{p_tournament_id:id,p_predictions:picks});if(x.error)toast(cleanError(x.error),"error");else{toast("נשמרו "+x.data.saved+" ניחושים");renderTournamentView();}};root.append(save);}
+  if(t.joined&&["open","locked"].includes(t.status)){const save=document.createElement("button");save.className="mb-4 w-full rounded-xl bg-gold p-3 font-extrabold text-ink";save.textContent="שמירת ניחושים";save.onclick=async()=>{if(!picks.length){toast("בחר לפחות ניחוש אחד","error");return;}save.disabled=true;const x=await supabase.rpc("tournament_save_predictions",{p_tournament_id:id,p_predictions:picks});if(x.error){toast(cleanError(x.error),"error");save.disabled=false;}else{toast("נשמרו "+x.data.saved+" ניחושים");renderTournamentView();}};root.append(save);}
   if(["locked","completed"].includes(t.status)||state.isAdmin){const b=await supabase.rpc("tournament_leaderboard",{p_tournament_id:id});if(!b.error){const title=document.createElement("h3");title.className="mb-2 font-bold";title.textContent="טבלת דירוג";root.append(title);(b.data||[]).forEach((x,i)=>{const line=document.createElement("p");line.className="mb-1 flex justify-between rounded-lg bg-panel p-3 text-sm";line.textContent=(i+1)+". "+x.username+" · "+x.points+" נק׳";root.append(line);});}}
 }
 async function renderAdminTournaments(root){

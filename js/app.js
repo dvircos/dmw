@@ -1899,7 +1899,15 @@ async function renderAdminTournaments(root){
     if(t.status==="draft")addAction("פרסום",async()=>{const x=await supabase.rpc("admin_tournament_set_status",{p_tournament_id:t.id,p_status:"open"});if(x.error)toast(cleanError(x.error),"error");else{toast("הטורניר פורסם");refreshAdmin();}});
     if(t.status==="open")addAction("סגירת הרשמה",async()=>{const x=await supabase.rpc("admin_tournament_set_status",{p_tournament_id:t.id,p_status:"locked"});if(x.error)toast(cleanError(x.error),"error");else{toast("ההרשמה נסגרה");refreshAdmin();}});
     if(["open","locked"].includes(t.status))addAction("סיום וחלוקת פרסים",async()=>{if(!confirm("לסיים את הטורניר ולחלק את הקופה?"))return;const x=await supabase.rpc("admin_tournament_finalize",{p_tournament_id:t.id});if(x.error)toast(cleanError(x.error),"error");else{toast("הטורניר הסתיים. זוכים: "+x.data.winners);refreshAdmin();}});
-    addAction("תצוגת משתמש",()=>{state.tournamentSelectedId=t.id;showTab("tournaments");});c.append(actions);root.append(c);
+    addAction("תצוגת משתמש",()=>{state.tournamentSelectedId=t.id;showTab("tournaments");});
+    if(t.status!=="completed")addAction("מחיקת טורניר",async()=>{
+      const feeRefund=t.participant_count>0?"\\n\\nהמערכת תחזיר למשתתפים את דמי הכניסה ששילמו לפני המחיקה.":"";
+      if(!confirm("למחוק לצמיתות את הטורניר \""+t.name+"\" ואת כל התחזיות והנתונים שלו?"+feeRefund))return;
+      const x=await supabase.rpc("admin_tournament_delete",{p_tournament_id:t.id});
+      if(x.error)toast(cleanError(x.error),"error");
+      else{toast("הטורניר נמחק"+(Number(x.data?.refund_total)>0?" · הוחזרו "+money(x.data.refund_total)+" מטבעות למשתתפים":""));refreshAdmin();}
+    });
+    c.append(actions);root.append(c);
   });
 }
 

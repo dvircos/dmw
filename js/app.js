@@ -773,6 +773,38 @@ function renderBoard() {
       select.textContent = group.id === "00000000-0000-0000-0000-000000000001" ? "🌍 כולם" : group.name;
       select.addEventListener("click", async () => { state.activeGroupId = group.id; await refreshBoard(); });
       wrap.append(select);
+      if (group.id !== "00000000-0000-0000-0000-000000000001" && (group.is_owner || group.is_member)) {
+        const manage = document.createElement("button");
+        manage.type = "button";
+        manage.className = "ml-1 rounded-lg border border-slate-700 px-2 py-2 text-xs text-slate-300";
+        manage.textContent = group.is_owner ? "ניהול" : "יציאה";
+        manage.addEventListener("click", async () => {
+          if (group.is_owner) {
+            const action = prompt("ניהול קבוצה: כתבו 1 לשינוי שם, 2 למחיקה");
+            if (action === "1") {
+              const nextName = prompt("שם חדש לקבוצה:", group.name);
+              if (nextName === null) return;
+              const result = await supabase.rpc("groups_update", { p_group_id: group.id, p_name: nextName.trim() });
+              if (result.error) { toast(cleanError(result.error), "error"); return; }
+              toast("שם הקבוצה עודכן");
+            } else if (action === "2") {
+              if (!confirm("למחוק את הקבוצה " + group.name + " ואת החברות של כל המשתתפים בה?")) return;
+              const result = await supabase.rpc("groups_delete", { p_group_id: group.id });
+              if (result.error) { toast(cleanError(result.error), "error"); return; }
+              if (state.activeGroupId === group.id) state.activeGroupId = "00000000-0000-0000-0000-000000000001";
+              toast("הקבוצה נמחקה");
+            } else return;
+          } else {
+            if (!confirm("לצאת מהקבוצה " + group.name + "?")) return;
+            const result = await supabase.rpc("groups_leave", { p_group_id: group.id });
+            if (result.error) { toast(cleanError(result.error), "error"); return; }
+            if (state.activeGroupId === group.id) state.activeGroupId = "00000000-0000-0000-0000-000000000001";
+            toast("יצאת מהקבוצה");
+          }
+          await refreshBoard();
+        });
+        wrap.append(manage);
+      }
       if (group.invite_code && group.id !== "00000000-0000-0000-0000-000000000001") {
         const share = document.createElement("button");
         share.type = "button";
@@ -805,9 +837,13 @@ function renderBoard() {
 
   const active = state.groups.find((group) => group.id === state.activeGroupId);
   const activeTitle = document.createElement("h3");
-  activeTitle.className = "mb-3 text-base font-extrabold text-gold";
+  activeTitle.className = "mb-1 text-base font-extrabold text-gold";
   activeTitle.textContent = active?.id === "00000000-0000-0000-0000-000000000001" ? "טבלת כולם" : `קבוצת ${active?.name || ""}`;
   root.append(activeTitle);
+  const memberCount = document.createElement("p");
+  memberCount.className = "mb-3 text-xs text-mist";
+  memberCount.textContent = `מספר משתתפים: ${active?.member_count ?? state.board.length}`;
+  root.append(memberCount);
 
   if (!state.board.length) {
     const placeholder = document.createElement("p");
@@ -1730,12 +1766,50 @@ async function renderAdminTournaments(root){
   const fee=document.createElement("input");fee.type="number";fee.min="0";fee.step="0.01";fee.value="0";fee.className="mb-3 mt-1 w-full rounded-xl bg-ink p-3 text-sm";feeLabel.append(fee);
   const closeLabel=document.createElement("label");closeLabel.className="block text-xs text-mist";closeLabel.textContent="מועד סגירת הרשמה (ריק = תחילת המשחק הראשון)";
   const close=document.createElement("input");close.type="datetime-local";close.className="mb-3 mt-1 w-full rounded-xl bg-ink p-3 text-sm";closeLabel.append(close);
-  const gl=document.createElement("div");gl.className="mb-3 max-h-56 overflow-y-auto rounded-xl border border-slate-700 p-2";
-  if(!games.length){const p=document.createElement("p");p.className="p-3 text-xs text-mist";p.textContent="אין משחקים עתידיים זמינים";gl.append(p);}
-  games.forEach(g=>{const l=document.createElement("label");l.className="flex items-center gap-2 p-2 text-xs";const cb=document.createElement("input");cb.type="checkbox";cb.value=g.id;const tx=document.createElement("span");tx.textContent=new Date(g.match_time).toLocaleString("he-IL")+" · "+g.home_team+" – "+g.away_team;l.append(cb,tx);gl.append(l);});
+  const leagueLabel=document.createElement("label");leagueLabel.className="mb-1 block text-xs text-mist";leagueLabel.textContent="סינון לפי ליגה";
+  const league=document.createElement("select");league.className="mb-2 w-full rounded-xl bg-ink p-3 text-sm";
+  const allOption=document.createElement("option");allOption.value="all";allOption.textContent="כל הליגות";league.append(allOption);
+  const leagues=[...new Set(games.map(g=>g.sportstats_league_name||"ליגה לא מסווגת"))].sort((a,b)=>a.localeCompare(b,"he"));
+  leagues.forEach(name=>{const o=document.createElement("option");o.value=name;o.textContent=name;league.append(o);});
+  const randomRow=document.createElement("div");randomRow.className="mb-2 grid grid-cols-[1fr_auto] gap-2";
+  const randomCount=document.createElement("input");randomCount.type="number";randomCount.min="1";randomCount.max="50";randomCount.value="5";randomCount.placeholder="כמה משחקים אקראיים";randomCount.className="min-w-0 rounded-xl bg-ink p-3 text-sm";
+  const randomButton=document.createElement("button");randomButton.type="button";randomButton.className="rounded-xl border border-gold px-3 py-2 text-sm font-bold text-gold";randomButton.textContent="בחירה אקראית";
+  const selectionInfo=document.createElement("p");selectionInfo.className="mb-2 text-xs text-mist";
+  const gl=document.createElement("div");gl.className="mb-3 max-h-72 overflow-y-auto rounded-xl border border-slate-700 p-2";
+  const selectedIds=new Set();
+  function renderTournamentGames(){
+    gl.replaceChildren();
+    const visible=games.filter(g=>league.value==="all"||(g.sportstats_league_name||"ליגה לא מסווגת")===league.value);
+    const groups=new Map();
+    visible.forEach(g=>{const key=g.sportstats_league_name||"ליגה לא מסווגת";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(g);});
+    if(!visible.length){const p=document.createElement("p");p.className="p-3 text-xs text-mist";p.textContent="אין משחקים עתידיים בליגה שנבחרה";gl.append(p);}
+    groups.forEach((items,name)=>{
+      const section=document.createElement("section");section.className="mb-3";
+      const heading=document.createElement("div");heading.className="sticky top-0 rounded-lg bg-ink px-2 py-2 text-xs font-extrabold text-gold";heading.textContent=name+" · "+items.length+" משחקים";section.append(heading);
+      items.forEach(g=>{const l=document.createElement("label");l.className="flex items-start gap-2 p-2 text-xs";const cb=document.createElement("input");cb.type="checkbox";cb.value=g.id;cb.checked=selectedIds.has(String(g.id));cb.addEventListener("change",()=>{if(cb.checked)selectedIds.add(String(g.id));else selectedIds.delete(String(g.id));updateSelectionInfo();});const tx=document.createElement("span");tx.textContent=new Date(g.match_time).toLocaleString("he-IL")+" · "+g.home_team+" – "+g.away_team;l.append(cb,tx);section.append(l);});
+      gl.append(section);
+    });
+    updateSelectionInfo();
+  }
+  function updateSelectionInfo(){selectionInfo.textContent=`נבחרו ${selectedIds.size} מתוך 50 משחקים לכל היותר`;}
+  league.addEventListener("change",renderTournamentGames);
+  randomButton.addEventListener("click",()=>{
+    const pool=games.filter(g=>(league.value==="all"||(g.sportstats_league_name||"ליגה לא מסווגת")===league.value)&&!selectedIds.has(String(g.id)));
+    const count=Number(randomCount.value);
+    if(!Number.isInteger(count)||count<1||count>50){toast("בחר מספר בין 1 ל־50","error");return;}
+    const shuffled=[...pool].sort(()=>Math.random()-0.5);
+    const chosen=shuffled.slice(0,count);
+    if(!chosen.length){toast("אין משחקים נוספים לבחירה במסנן הזה","error");return;}
+    if(selectedIds.size+chosen.length>50){toast("אפשר לבחור עד 50 משחקים לטורניר","error");return;}
+    chosen.forEach(g=>selectedIds.add(String(g.id)));
+    renderTournamentGames();
+    toast(`נוספו ${chosen.length} משחקים אקראיים`);
+  });
+  renderTournamentGames();
   const submit=document.createElement("button");submit.type="submit";submit.className="w-full rounded-xl bg-gold p-3 font-bold text-ink";submit.textContent="יצירת טיוטה";
-  form.append(h,name,feeLabel,closeLabel,gl,submit);
-  form.addEventListener("submit",async e=>{e.preventDefault();const ids=[...gl.querySelectorAll("input:checked")].map(x=>Number(x.value));if(!ids.length){toast("בחר לפחות משחק אחד","error");return;}submit.disabled=true;const x=await supabase.rpc("admin_tournament_create",{p_name:name.value.trim(),p_entry_fee:Number(fee.value),p_registration_closes_at:close.value?new Date(close.value).toISOString():null,p_game_ids:ids});if(x.error)toast(cleanError(x.error),"error");else{toast("הטיוטה נוצרה");refreshAdmin();}submit.disabled=false;});
+  form.append(h,name,feeLabel,closeLabel,leagueLabel,league,randomRow,gl,selectionInfo,submit);
+  randomRow.append(randomCount,randomButton);
+  form.addEventListener("submit",async e=>{e.preventDefault();const ids=[...selectedIds].map(Number);if(!ids.length){toast("בחר לפחות משחק אחד","error");return;}submit.disabled=true;const x=await supabase.rpc("admin_tournament_create",{p_name:name.value.trim(),p_entry_fee:Number(fee.value),p_registration_closes_at:close.value?new Date(close.value).toISOString():null,p_game_ids:ids});if(x.error)toast(cleanError(x.error),"error");else{toast("הטיוטה נוצרה");refreshAdmin();}submit.disabled=false;});
   root.append(form);
   const title=document.createElement("h3");title.className="mb-3 font-bold";title.textContent="טורנירים קיימים";root.append(title);
   (Array.isArray(lr.data)?lr.data:[]).forEach(t=>{const c=document.createElement("article");c.className="mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";const n=document.createElement("strong");n.textContent=t.name;const meta=document.createElement("p");meta.className="my-2 text-xs text-mist";meta.textContent=t.participant_count+" משתתפים · "+t.finished_count+"/"+t.game_count+" משחקים הסתיימו · קופה ₪"+money(t.prize_pool)+" · "+t.status;c.append(n,meta);const actions=document.createElement("div");actions.className="grid grid-cols-2 gap-2";

@@ -178,8 +178,8 @@ class SportStatsSync:
         self.api_key = os.environ.get("SPORTSTATS_API_KEY", "").strip()
         self.supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
         self.service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-        if self.api_key in PLACEHOLDERS or not self.supabase_url or not self.service_key:
-            raise RuntimeError("SPORTSTATS_API_KEY, SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
+        if not self.supabase_url or not self.service_key:
+            raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required")
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"})
         self.db_headers = {
@@ -321,6 +321,8 @@ class SportStatsSync:
             log.error("Could not finalize sync run %s: HTTP %s %s", self.run_id, response.status_code, response.text[:500])
 
     def fetch_league(self, league_code: str, start: str, end: str) -> list[dict[str, Any]]:
+        if self.api_key in PLACEHOLDERS:
+            raise RuntimeError("SPORTSTATS_API_KEY is missing or still contains its placeholder")
         # Exactly one list request per league. No retries and no detail endpoint calls.
         params = {"league_id": league_code, "date_from": start, "date_to": end,
                   "limit": 100, "order": "asc"}

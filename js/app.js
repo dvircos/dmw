@@ -1745,9 +1745,9 @@ async function renderTournamentDetail(root,id){
   const rules=document.createElement("section");rules.className="mb-4 rounded-2xl border border-slate-700/70 bg-panel p-4";
   const rulesTitle=document.createElement("h3");rulesTitle.className="mb-3 text-sm font-extrabold text-gold";rulesTitle.textContent="איך עובד הטורניר?";
   const rulesList=document.createElement("div");rulesList.className="space-y-3";
-  [["01","כולם משלמים דמי כניסה זהים."],["02","מי שפוגע בהכי הרבה תוצאות זוכה בכל הסכום שנצבר."],["03","במקרה של תיקו, הסכום מתחלק שווה בשווה בין הזוכים."]].forEach(([number,copy])=>{
+  ["כולם משלמים דמי כניסה זהים.","מי שפוגע בהכי הרבה תוצאות זוכה בכל הסכום שנצבר.","במקרה של תיקו, הסכום מתחלק שווה בשווה בין הזוכים."].forEach(copy=>{
     const item=document.createElement("div");item.className="flex items-start gap-3 text-sm leading-relaxed text-slate-200";
-    const marker=document.createElement("span");marker.className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink text-[10px] font-extrabold text-gold";marker.textContent=number;
+    const marker=document.createElement("span");marker.className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-gold";
     const text=document.createElement("p");text.className="pt-0.5";text.textContent=copy;item.append(marker,text);rulesList.append(item);
   });
   rules.append(rulesTitle,rulesList);root.append(rules);

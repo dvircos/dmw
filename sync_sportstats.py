@@ -281,12 +281,11 @@ class SportStatsSync:
         run_number = os.environ.get("GITHUB_RUN_ID")
         if run_number:
             trigger = f"{trigger} · GitHub run {run_number}"
-        response = self._request(
-            "POST",
+        response = requests.post(
             f"{self.supabase_url}/rest/v1/rpc/start_api_sync_run",
-            purpose="פתיחת רישום ריצה",
             headers=self.db_headers,
-            json_body={"p_purpose": purpose, "p_trigger_source": trigger},
+            json={"p_purpose": purpose, "p_trigger_source": trigger},
+            timeout=20,
         )
         if response.status_code >= 300:
             raise RuntimeError(f"Could not start sync run: HTTP {response.status_code}: {response.text[:500]}")
@@ -302,12 +301,10 @@ class SportStatsSync:
     ) -> None:
         if not self.run_id:
             return
-        response = self._request(
-            "POST",
+        response = requests.post(
             f"{self.supabase_url}/rest/v1/rpc/finish_api_sync_run",
-            purpose="סגירת רישום ריצה",
             headers=self.db_headers,
-            json_body={
+            json={
                 "p_run_id": self.run_id,
                 "p_status": status,
                 "p_summary": {
@@ -318,6 +315,7 @@ class SportStatsSync:
                 "p_error": error,
                 "p_request_count": self.request_count,
             },
+            timeout=20,
         )
         if response.status_code >= 300:
             log.error("Could not finalize sync run %s: HTTP %s %s", self.run_id, response.status_code, response.text[:500])
@@ -347,7 +345,12 @@ class SportStatsSync:
                         league_code, total, len(body["data"]))
         return body["data"]
 
-    def rpc(self, name: str | dict[str, Any], payload: dict[str, Any] | None = None) -> Any:
+    def rpc(
+        self,
+        name: str | dict[str, Any],
+        payload: dict[str, Any] | None = None,
+        purpose: str | None = None,
+    ) -> Any:
         # Preserve the concise fixture-upsert call while supporting quota and result RPCs.
         if payload is None:
             rpc_name = "upsert_sportstats_fixture"
@@ -360,7 +363,7 @@ class SportStatsSync:
             f"{self.supabase_url}/rest/v1/rpc/{rpc_name}",
             headers=self.db_headers,
             json_body=rpc_payload,
-            purpose=f"Supabase RPC · {rpc_name}",
+            purpose=purpose or f"Supabase RPC · {rpc_name}",
         )
         if response.status_code >= 300:
             raise RuntimeError(f"Supabase RPC {rpc_name} failed: HTTP {response.status_code}: {response.text[:300]}")
@@ -373,7 +376,7 @@ class SportStatsSync:
         for code, label, name in LEAGUES:
             league = {"code": code, "label": label, "name": name}
             # Reserve quota before every SportStatsAPI request, including fixture imports.
-            allowed = self.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False})
+            allowed = self.rpc("reserve_api_requests", {"p_count": 1, "p_emergency": False}, purpose="שמירת מכסת API לפני פנייה לספק")
             if allowed is not True:
                 log.warning("Daily provider quota reached; stopping fixture import before another request.")
                 break
@@ -397,7 +400,7 @@ class SportStatsSync:
                     "p_away_flag": team_logo_url(raw.get("away_team") or {}, away),
                     "p_match_time": match["kickoff"],
                     "p_round_name": f"{label}|{match['league_name']}",
-                })
+                }, purpose=f"שמירת משחק בלוח · {team_display(home)} נגד {team_display(away)}")
                 imported += 1
                 log.info("Fixture %s (%s): %s", match["code"], label, result)
         log.info("Fixture import complete: %s fixtures, %s provider requests", imported, self.api_calls)
@@ -535,7 +538,7 @@ class SportStatsSync:
                         "p_match_code": match_code,
                         "p_home_score": score[0],
                         "p_away_score": score[1],
-                    })
+                    }, purpose=f"אישור תוצאה סופית · {match_code} · {score[0]}-{score[1]}")
                     confirmed += 1
                     log.info("Confirmed SportStatsAPI final result %s: %s-%s; settlement RPC=%s",
                              match_code, score[0], score[1], result)
@@ -550,7 +553,7 @@ class SportStatsSync:
                     "p_away_score": live[1],
                     "p_live_minute": live[2],
                     "p_live_status_text": live[3],
-                })
+                }, purpose=f"עדכון תוצאה חיה · {match_code} · {live[0]}-{live[1]}")
                 log.info("Updated live SportStatsAPI score %s: %s-%s (%s); no settlement; RPC=%s",
                          match_code, live[0], live[1], live[3], result)
 

@@ -1224,14 +1224,14 @@ async function renderAdminHome(root) {
   intro.textContent = "בחר אזור לניהול ולבקרה";
   root.append(heading, intro);
 
-  const [users, requests, games] = await Promise.all([
+  const [users, runsResult, games] = await Promise.all([
     supabase.rpc("admin_list_users"),
-    supabase.rpc("admin_recent_api_requests", { p_limit: 100 }),
+    supabase.rpc("admin_recent_api_sync_runs", { p_limit: 100 }),
     supabase.from("games").select("id", { count: "exact", head: true })
   ]);
   const userRows = Array.isArray(users.data) ? users.data : [];
-  const requestRows = Array.isArray(requests.data) ? requests.data : [];
-  const failed = requestRows.filter((row) => Number(row.status_code) >= 400).length;
+  const runRows = Array.isArray(runsResult.data) ? runsResult.data : [];
+  const failed = runRows.filter((row) => row.status === "failed").length;
   const stats = document.createElement("div");
   stats.className = "mb-5 grid grid-cols-3 gap-2";
   [
@@ -1261,28 +1261,27 @@ async function renderAdminHome(root) {
 
 async function renderAdminControl(root) {
   adminHeader(root, "בקרה");
-  const [requests, games, users] = await Promise.all([
-    supabase.rpc("admin_recent_api_requests", { p_limit: 100 }),
+  const [runsResult, games, users] = await Promise.all([
+    supabase.rpc("admin_recent_api_sync_runs", { p_limit: 100 }),
     supabase.from("games").select("id", { count: "exact", head: true }),
     supabase.rpc("admin_list_users")
   ]);
-  if (requests.error) {
+  if (runsResult.error) {
     const warning = document.createElement("p");
     warning.className = "rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300";
-    warning.textContent = "לא ניתן לטעון נתוני ריצות: " + cleanError(requests.error);
+    warning.textContent = "לא ניתן לטעון דוחות ריצות: " + cleanError(runsResult.error);
     root.append(warning);
   }
-  const rows = Array.isArray(requests.data) ? requests.data : [];
-  const failed = rows.filter((row) => Number(row.status_code) >= 400);
-  const success = rows.filter((row) => Number(row.status_code) >= 200 && Number(row.status_code) < 300);
-  const last = rows[0];
+  const rows = Array.isArray(runsResult.data) ? runsResult.data : [];
+  const failed = rows.filter((row) => row.status === "failed");
+  const successful = rows.filter((row) => row.status === "success");
   const tiles = document.createElement("div");
   tiles.className = "grid grid-cols-2 gap-3";
   [
     [String(Array.isArray(users.data) ? users.data.length : "—"), "משתמשים"],
     [String(games.count ?? "—"), "משחקים במערכת"],
-    [String(success.length), "פניות מוצלחות · 100 אחרונות"],
-    [String(failed.length), "פניות שנכשלו · 100 אחרונות"]
+    [String(successful.length), "ריצות שהצליחו · 100 אחרונות"],
+    [String(failed.length), "ריצות שנכשלו · 100 אחרונות"]
   ].forEach(([value, label]) => {
     const tile = document.createElement("div");
     tile.className = "rounded-2xl border border-slate-700/50 bg-panel p-4";
@@ -1300,12 +1299,13 @@ async function renderAdminControl(root) {
   lastRun.className = "mt-4 rounded-2xl border border-slate-700/50 bg-panel p-4";
   const lastTitle = document.createElement("h3");
   lastTitle.className = "mb-2 font-bold";
-  lastTitle.textContent = "הפנייה האחרונה";
+  lastTitle.textContent = "הריצה האחרונה";
   const lastText = document.createElement("p");
   lastText.className = "text-sm text-mist";
+  const last = rows[0];
   lastText.textContent = last
-    ? new Date(last.called_at).toLocaleString("he-IL") + " · " + (last.purpose || last.endpoint) + " · HTTP " + (last.status_code ?? "—")
-    : "עדיין אין פניות מתועדות";
+    ? new Date(last.started_at).toLocaleString("he-IL") + " · " + (last.purpose || "סנכרון") + " · " + (last.status || "running")
+    : "עדיין לא נרשמה ריצה חדשה";
   lastRun.append(lastTitle, lastText);
   root.append(lastRun);
   const go = document.createElement("button");
@@ -1516,61 +1516,141 @@ async function renderAdminSettlements(root) {
 
 async function renderAdminRuns(root) {
   adminHeader(root, "דוחות ריצות");
-  const result = await supabase.rpc("admin_recent_api_requests", { p_limit: 200 });
+  const result = await supabase.rpc("admin_recent_api_sync_runs", { p_limit: 100 });
   if (result.error) { empty(root, cleanError(result.error)); return; }
-  const rows = Array.isArray(result.data) ? result.data : [];
+  const runs = Array.isArray(result.data) ? result.data : [];
   const summary = document.createElement("p");
   summary.className = "mb-3 text-xs text-mist";
-  summary.textContent = rows.length + " פניות אחרונות · מסודרות מהחדשה לישנה";
+  summary.textContent = "מכאן מוצגות ריצות חדשות בלבד, מרגע הפעלת מנגנון התיעוד. כל ריצה כוללת הצלחה/כישלון ואת כל הפניות שבוצעו במהלכה.";
   root.append(summary);
-  if (!rows.length) {
+  if (!runs.length) {
     const none = document.createElement("p");
-    none.className = "rounded-xl bg-panel p-4 text-sm text-mist";
-    none.textContent = "עדיין לא נרשמו פניות.";
+    none.className = "rounded-2xl border border-slate-700/50 bg-panel p-4 text-sm text-mist";
+    none.textContent = "עדיין אין ריצות חדשות מתועדות. הריצה הבאה תופיע כאן אוטומטית.";
     root.append(none);
     return;
   }
-  rows.forEach((entry) => {
+
+  const statusLabel = {
+    success: "הצליחה",
+    failed: "נכשלה",
+    running: "בתהליך",
+    skipped: "דולגה"
+  };
+  const statusStyle = {
+    success: "bg-emerald-500/15 text-emerald-300",
+    failed: "bg-rose-500/15 text-rose-300",
+    running: "bg-amber-400/15 text-amber-200",
+    skipped: "bg-slate-500/20 text-slate-300"
+  };
+
+  runs.forEach((run) => {
     const card = document.createElement("article");
-    card.className = "mb-2 rounded-2xl border border-slate-700/50 bg-panel p-3";
+    card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-3";
     const top = document.createElement("div");
     top.className = "flex items-center justify-between gap-2";
-    const time = document.createElement("time");
-    time.className = "text-xs text-mist";
-    time.dateTime = entry.called_at;
-    time.textContent = new Date(entry.called_at).toLocaleString("he-IL");
+    const date = document.createElement("time");
+    date.className = "text-xs text-mist";
+    date.dateTime = run.started_at;
+    date.textContent = new Date(run.started_at).toLocaleString("he-IL");
     const status = document.createElement("span");
-    const code = Number(entry.status_code);
-    status.className = "rounded-lg px-2 py-1 text-xs font-extrabold " + (code >= 400 ? "bg-rose-500/15 text-rose-300" : code >= 200 && code < 300 ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-400/15 text-amber-200");
-    status.textContent = "HTTP " + (entry.status_code ?? "—");
-    top.append(time, status);
-    const endpoint = document.createElement("p");
-    endpoint.className = "mt-2 break-all text-sm font-bold";
-    endpoint.textContent = entry.endpoint || "פנייה ללא כתובת";
+    status.className = "rounded-lg px-2 py-1 text-xs font-extrabold " + (statusStyle[run.status] || statusStyle.running);
+    status.textContent = statusLabel[run.status] || run.status;
+    top.append(date, status);
+
     const purpose = document.createElement("p");
-    purpose.className = "mt-1 text-xs text-mist";
-    purpose.textContent = "מטרה: " + (entry.purpose || "לא צוינה") + (entry.duration_ms != null ? " · " + entry.duration_ms + "ms" : "");
-    card.append(top, endpoint, purpose);
+    purpose.className = "mt-2 text-sm font-bold";
+    purpose.textContent = run.purpose || "ריצת סנכרון";
+    const meta = document.createElement("p");
+    meta.className = "mt-1 text-xs text-mist";
+    const endTime = run.finished_at ? new Date(run.finished_at).toLocaleTimeString("he-IL") : "עדיין פועלת";
+    meta.textContent = "הסתיימה: " + endTime + " · " + (run.request_count || 0) + " פניות · " + (run.trigger_source || "מקור לא ידוע");
+    card.append(top, purpose, meta);
+
+    const summaryData = run.summary || {};
+    if (Object.keys(summaryData).length) {
+      const resultLine = document.createElement("p");
+      resultLine.className = "mt-2 text-xs text-slate-300";
+      const pieces = [];
+      if (summaryData.fixtures_imported != null) pieces.push("משחקים שנקלטו: " + summaryData.fixtures_imported);
+      if (summaryData.results_confirmed != null) pieces.push("תוצאות שאושרו: " + summaryData.results_confirmed);
+      if (summaryData.provider_requests != null) pieces.push("פניות לספק: " + summaryData.provider_requests);
+      if (summaryData.reason) pieces.push(summaryData.reason);
+      resultLine.textContent = pieces.join(" · ");
+      if (pieces.length) card.append(resultLine);
+    }
+    if (run.error) {
+      const error = document.createElement("p");
+      error.className = "mt-2 rounded-lg bg-rose-500/10 p-2 text-xs text-rose-300";
+      error.textContent = "שגיאה: " + run.error;
+      card.append(error);
+    }
+
     const details = document.createElement("details");
-    details.className = "mt-2 rounded-xl border border-slate-700/50 bg-ink/30 p-2";
+    details.className = "mt-3 border-t border-slate-700/50 pt-2";
     const summaryLine = document.createElement("summary");
     summaryLine.className = "cursor-pointer text-xs font-bold text-gold";
-    summaryLine.textContent = "פרטי הפנייה והתשובה";
-    const requestTitle = document.createElement("p");
-    requestTitle.className = "mt-2 text-[11px] font-bold text-slate-300";
-    requestTitle.textContent = "פרמטרים שנשלחו / פרטי הבדיקה";
-    const requestData = document.createElement("pre");
-    requestData.className = "mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[11px] text-mist";
-    requestData.textContent = JSON.stringify(entry.params || {}, null, 2);
-    const responseTitle = document.createElement("p");
-    responseTitle.className = "mt-2 text-[11px] font-bold text-slate-300";
-    responseTitle.textContent = "תשובת הספק";
-    const responseData = document.createElement("pre");
-    responseData.className = "mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[11px] text-mist";
-    responseData.textContent = entry.response_summary
-      ? JSON.stringify(entry.response_summary, null, 2)
-      : "תוכן התשובה לא נשמר ברישום המקורי. נשמרו קוד הסטטוס והפרמטרים בלבד.";
-    details.append(summaryLine, requestTitle, requestData, responseTitle, responseData);
+    summaryLine.textContent = "הצגת כל הפניות ותשובות הספק";
+    const body = document.createElement("div");
+    body.className = "mt-3 space-y-2";
+    let loaded = false;
+    details.addEventListener("toggle", async () => {
+      if (!details.open || loaded) return;
+      loaded = true;
+      body.textContent = "טוען פרטי פניות...";
+      const detailResult = await supabase.rpc("admin_api_run_details", { p_run_id: run.run_id });
+      body.replaceChildren();
+      if (detailResult.error) {
+        const error = document.createElement("p");
+        error.className = "text-xs text-rose-300";
+        error.textContent = cleanError(detailResult.error);
+        body.append(error);
+        return;
+      }
+      const requests = detailResult.data?.requests || [];
+      if (!requests.length) {
+        const none = document.createElement("p");
+        none.className = "text-xs text-mist";
+        none.textContent = "הריצה לא ביצעה פניות HTTP.";
+        body.append(none);
+        return;
+      }
+      requests.forEach((request, index) => {
+        const item = document.createElement("section");
+        item.className = "rounded-xl border border-slate-700/50 bg-ink/30 p-3";
+        const requestTop = document.createElement("div");
+        requestTop.className = "flex items-center justify-between gap-2";
+        const requestTime = document.createElement("time");
+        requestTime.className = "text-[11px] text-mist";
+        requestTime.textContent = new Date(request.called_at).toLocaleTimeString("he-IL");
+        const requestStatus = document.createElement("span");
+        const code = Number(request.status_code);
+        requestStatus.className = "text-xs font-bold " + (code >= 400 || code === 0 ? "text-rose-300" : code >= 200 && code < 300 ? "text-emerald-300" : "text-amber-200");
+        requestStatus.textContent = code === 0 ? "נכשלה · ללא תשובת שרת" : "HTTP " + code;
+        requestTop.append(requestTime, requestStatus);
+        const requestPurpose = document.createElement("p");
+        requestPurpose.className = "mt-1 text-xs font-bold";
+        requestPurpose.textContent = request.purpose || "פנייה ללא מטרה";
+        const endpoint = document.createElement("p");
+        endpoint.className = "mt-1 break-all text-[11px] text-mist";
+        endpoint.textContent = request.endpoint || "";
+        const duration = document.createElement("p");
+        duration.className = "mt-1 text-[11px] text-mist";
+        duration.textContent = request.duration_ms == null ? "" : "משך: " + request.duration_ms + "ms";
+        const payload = document.createElement("details");
+        payload.className = "mt-2";
+        const payloadTitle = document.createElement("summary");
+        payloadTitle.className = "cursor-pointer text-[11px] font-semibold text-gold";
+        payloadTitle.textContent = "מה נשלח ומה חזר";
+        const requestJson = document.createElement("pre");
+        requestJson.className = "mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[10px] text-mist";
+        requestJson.textContent = "פרמטרים:\n" + JSON.stringify(request.params || {}, null, 2) + "\n\nתשובה:\n" + JSON.stringify(request.response_summary ?? "לא התקבלה תשובה", null, 2);
+        payload.append(payloadTitle, requestJson);
+        item.append(requestTop, requestPurpose, endpoint, duration, payload);
+        body.append(item);
+      });
+    });
+    details.append(summaryLine, body);
     card.append(details);
     root.append(card);
   });

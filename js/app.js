@@ -1850,7 +1850,7 @@ async function renderAdminTournaments(root){
   });
   renderTournamentGames();
   const submit=document.createElement("button");submit.type="submit";submit.className="w-full rounded-xl bg-gold p-3 font-bold text-ink";submit.textContent="יצירת טיוטה";
-  form.append(h,name,feeLabel,closeLabel,leagueLabel,league,randomRow,gl,selectionInfo,submit);
+  form.append(h,name,feeLabel,closeLabel,searchWrap,randomRow,selectionBar,gl,submit);
   randomRow.append(randomCount,randomButton);
   form.addEventListener("submit",async e=>{e.preventDefault();const ids=[...selectedIds].map(Number);if(!ids.length){toast("בחר לפחות משחק אחד","error");return;}submit.disabled=true;const x=await supabase.rpc("admin_tournament_create",{p_name:name.value.trim(),p_entry_fee:Number(fee.value),p_registration_closes_at:close.value?new Date(close.value).toISOString():null,p_game_ids:ids});if(x.error)toast(cleanError(x.error),"error");else{toast("הטיוטה נוצרה");refreshAdmin();}submit.disabled=false;});
   root.append(form);

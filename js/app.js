@@ -1756,7 +1756,7 @@ async function renderTournamentDetail(root,id){
 }
 async function renderAdminTournaments(root){
   adminHeader(root,"ניהול טורנירים");
-  const [lr,gr]=await Promise.all([supabase.rpc("admin_tournament_list"),supabase.from("games").select("id,home_team,away_team,match_time,sportstats_league_name").eq("status","upcoming").gt("match_time",new Date().toISOString()).order("match_time").limit(50)]);
+  const [lr,gr]=await Promise.all([supabase.rpc("admin_tournament_list"),supabase.from("games").select("id,home_team,away_team,match_time,sportstats_league_name").eq("status","upcoming").gt("match_time",new Date().toISOString()).order("match_time").limit(500)]);
   if(lr.error){empty(root,cleanError(lr.error));return;}
   const games=gr.data||[];
   const form=document.createElement("form");form.className="mb-5 rounded-2xl border border-slate-700/50 bg-panel p-4";

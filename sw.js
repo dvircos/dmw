@@ -1,4 +1,4 @@
-const CACHE = "dmw-v40";
+const CACHE = "dmw-v41";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,7 +6,7 @@ const APP_SHELL = [
   "./js/config.js",
   "./js/toast.js",
   "./js/format.js",
-  "./js/app.js?v=20261113-11",
+  "./js/app.js?v=20261113-12",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];

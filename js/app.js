@@ -1237,7 +1237,7 @@ async function renderAdminHome(root) {
   [
     [userRows.length, "משתמשים"],
     [games.count ?? "—", "משחקים"],
-    [failed, "פניות שנכשלו"]
+    [failed, "ריצות שנכשלו"]
   ].forEach(([value, label]) => {
     const tile = document.createElement("div");
     tile.className = "rounded-xl border border-slate-700/50 bg-panel p-3 text-center";

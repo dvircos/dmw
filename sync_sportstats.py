@@ -188,16 +188,151 @@ class SportStatsSync:
             "Content-Type": "application/json",
         }
         self.api_calls = 0
+        self.request_count = 0
+        self.run_id: str | None = None
+
+    @staticmethod
+    def _response_payload(response: requests.Response) -> Any:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = response.text
+        serialized = payload if isinstance(payload, str) else __import__("json").dumps(payload, ensure_ascii=False, default=str)
+        if len(serialized) > 60000:
+            return {
+                "truncated": True,
+                "original_chars": len(serialized),
+                "preview": serialized[:60000],
+            }
+        return payload
+
+    def _record_api_request(
+        self,
+        endpoint: str,
+        params: dict[str, Any] | None,
+        status: int,
+        purpose: str,
+        response_payload: Any,
+        duration_ms: int,
+    ) -> None:
+        self.request_count += 1
+        try:
+            requests.post(
+                f"{self.supabase_url}/rest/v1/rpc/log_api_request",
+                headers=self.db_headers,
+                json={
+                    "p_endpoint": endpoint,
+                    "p_params": params or {},
+                    "p_status": status,
+                    "p_purpose": purpose,
+                    "p_response": response_payload,
+                    "p_duration_ms": duration_ms,
+                    "p_run_id": self.run_id,
+                },
+                timeout=12,
+            ).raise_for_status()
+        except Exception as exc:
+            # Logging must never turn a successful data sync into a failed sync.
+            log.error("Could not write API request report for %s: %s", endpoint, str(exc)[:300])
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        purpose: str,
+        params: dict[str, Any] | None = None,
+        json_body: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        session: requests.Session | None = None,
+        provider: bool = False,
+    ) -> requests.Response:
+        started = datetime.now(timezone.utc)
+        clock = __import__("time").monotonic()
+        try:
+            client = session or requests
+            response = client.request(
+                method,
+                url,
+                headers=headers,
+                params=params,
+                json=json_body,
+                timeout=35,
+            )
+        except Exception as exc:
+            duration = int((__import__("time").monotonic() - clock) * 1000)
+            self._record_api_request(
+                url, params or json_body, 0, purpose,
+                {"error": f"{type(exc).__name__}: {str(exc)[:2000]}"}, duration,
+            )
+            raise
+        duration = int((__import__("time").monotonic() - clock) * 1000)
+        if provider:
+            self.api_calls += 1
+        payload = self._response_payload(response)
+        self._record_api_request(
+            response.url, params or json_body, response.status_code,
+            purpose, payload, duration,
+        )
+        return response
+
+    def begin_run(self, purpose: str) -> None:
+        trigger = os.environ.get("GITHUB_EVENT_NAME", "manual")
+        run_number = os.environ.get("GITHUB_RUN_ID")
+        if run_number:
+            trigger = f"{trigger} · GitHub run {run_number}"
+        response = self._request(
+            "POST",
+            f"{self.supabase_url}/rest/v1/rpc/start_api_sync_run",
+            purpose="פתיחת רישום ריצה",
+            headers=self.db_headers,
+            json_body={"p_purpose": purpose, "p_trigger_source": trigger},
+        )
+        if response.status_code >= 300:
+            raise RuntimeError(f"Could not start sync run: HTTP {response.status_code}: {response.text[:500]}")
+        self.run_id = str(response.json()).strip('"')
+        if not self.run_id:
+            raise RuntimeError("Supabase did not return a sync run ID")
+
+    def finish_run(
+        self,
+        status: str,
+        summary: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        if not self.run_id:
+            return
+        response = self._request(
+            "POST",
+            f"{self.supabase_url}/rest/v1/rpc/finish_api_sync_run",
+            purpose="סגירת רישום ריצה",
+            headers=self.db_headers,
+            json_body={
+                "p_run_id": self.run_id,
+                "p_status": status,
+                "p_summary": {
+                    **(summary or {}),
+                    "provider_requests": self.api_calls,
+                    "total_requests": self.request_count,
+                },
+                "p_error": error,
+                "p_request_count": self.request_count,
+            },
+        )
+        if response.status_code >= 300:
+            log.error("Could not finalize sync run %s: HTTP %s %s", self.run_id, response.status_code, response.text[:500])
 
     def fetch_league(self, league_code: str, start: str, end: str) -> list[dict[str, Any]]:
         # Exactly one list request per league. No retries and no detail endpoint calls.
-        response = self.session.get(
-            f"{API_BASE}/soccer/matches",
-            params={"league_id": league_code, "date_from": start, "date_to": end,
-                    "limit": 100, "order": "asc"},
-            timeout=35,
+        params = {"league_id": league_code, "date_from": start, "date_to": end,
+                  "limit": 100, "order": "asc"}
+        response = self._request(
+            "GET", f"{API_BASE}/soccer/matches",
+            params=params,
+            purpose=f"SportStatsAPI · שליפת משחקים · {league_code} · {start} עד {end}",
+            session=self.session,
+            provider=True,
         )
-        self.api_calls += 1
         if response.status_code in (401, 403):
             raise RuntimeError(f"SportStatsAPI rejected the configured key (HTTP {response.status_code})")
         if response.status_code == 429:
@@ -220,9 +355,12 @@ class SportStatsSync:
         else:
             rpc_name = str(name)
             rpc_payload = payload
-        response = requests.post(
+        response = self._request(
+            "POST",
             f"{self.supabase_url}/rest/v1/rpc/{rpc_name}",
-            headers=self.db_headers, json=rpc_payload, timeout=35,
+            headers=self.db_headers,
+            json_body=rpc_payload,
+            purpose=f"Supabase RPC · {rpc_name}",
         )
         if response.status_code >= 300:
             raise RuntimeError(f"Supabase RPC {rpc_name} failed: HTTP {response.status_code}: {response.text[:300]}")
@@ -280,9 +418,12 @@ class SportStatsSync:
             "order": "match_time.asc",
             "limit": "500",
         }
-        response = requests.get(
+        response = self._request(
+            "GET",
             f"{self.supabase_url}/rest/v1/games",
-            headers=self.db_headers, params=params, timeout=35,
+            headers=self.db_headers,
+            params=params,
+            purpose="Supabase · איתור משחקים חיים/שהסתיימו וממתינים לתוצאה",
         )
         if response.status_code >= 300:
             raise RuntimeError(f"Could not load pending SportStatsAPI games: HTTP {response.status_code}: {response.text[:300]}")
@@ -426,15 +567,26 @@ def main() -> None:
         parser.error("--days must be between 1 and 31")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     sync = SportStatsSync()
-    if args.mode == "fixtures":
-        if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
-            local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
-            if local_now.hour != 6:
-                log.info("Outside the scheduled Israel 06:00 fixture import; no provider calls.")
-                return
-        sync.sync_fixtures(args.days)
-    else:
-        sync.sync_results()
+    purpose = "SportStatsAPI · יבוא משחקים עתידיים" if args.mode == "fixtures" else "SportStatsAPI · עדכון תוצאות ותוצאות חיות"
+    sync.begin_run(purpose)
+    try:
+        if args.mode == "fixtures":
+            if os.environ.get("GITHUB_EVENT_NAME") == "schedule":
+                local_now = datetime.now(timezone.utc).astimezone(ZoneInfo("Asia/Jerusalem"))
+                if local_now.hour != 6:
+                    reason = "Outside the scheduled Israel 06:00 fixture import; no provider calls."
+                    log.info(reason)
+                    sync.finish_run("skipped", {"reason": reason})
+                    return
+            imported = sync.sync_fixtures(args.days)
+            sync.finish_run("success", {"mode": args.mode, "fixtures_imported": imported})
+        else:
+            confirmed = sync.sync_results()
+            sync.finish_run("success", {"mode": args.mode, "results_confirmed": confirmed})
+    except Exception as exc:
+        log.exception("SportStatsAPI sync run failed")
+        sync.finish_run("failed", {"mode": args.mode}, f"{type(exc).__name__}: {str(exc)[:3500]}")
+        raise
 
 
 if __name__ == "__main__":

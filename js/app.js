@@ -1756,7 +1756,7 @@ async function renderTournamentDetail(root,id){
 }
 async function renderAdminTournaments(root){
   adminHeader(root,"ניהול טורנירים");
-  const [lr,gr]=await Promise.all([supabase.rpc("admin_tournament_list"),supabase.from("games").select("id,home_team,away_team,match_time").eq("status","upcoming").gt("match_time",new Date().toISOString()).order("match_time").limit(50)]);
+  const [lr,gr]=await Promise.all([supabase.rpc("admin_tournament_list"),supabase.from("games").select("id,home_team,away_team,match_time,sportstats_league_name").eq("status","upcoming").gt("match_time",new Date().toISOString()).order("match_time").limit(50)]);
   if(lr.error){empty(root,cleanError(lr.error));return;}
   const games=gr.data||[];
   const form=document.createElement("form");form.className="mb-5 rounded-2xl border border-slate-700/50 bg-panel p-4";
@@ -1797,7 +1797,8 @@ async function renderAdminTournaments(root){
     const pool=games.filter(g=>(league.value==="all"||(g.sportstats_league_name||"ליגה לא מסווגת")===league.value)&&!selectedIds.has(String(g.id)));
     const count=Number(randomCount.value);
     if(!Number.isInteger(count)||count<1||count>50){toast("בחר מספר בין 1 ל־50","error");return;}
-    const shuffled=[...pool].sort(()=>Math.random()-0.5);
+    const shuffled=[...pool];
+    for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
     const chosen=shuffled.slice(0,count);
     if(!chosen.length){toast("אין משחקים נוספים לבחירה במסנן הזה","error");return;}
     if(selectedIds.size+chosen.length>50){toast("אפשר לבחור עד 50 משחקים לטורניר","error");return;}

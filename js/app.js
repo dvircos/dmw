@@ -1742,6 +1742,7 @@ async function renderTournamentDetail(root,id){
   const back=document.createElement("button");back.className="mb-4 rounded-xl border border-slate-600 px-4 py-3 text-sm font-bold";back.textContent="→ חזרה";back.onclick=()=>{state.tournamentSelectedId=null;renderTournamentView();};
   const h=document.createElement("h2");h.className="mb-3 text-xl font-extrabold text-gold";h.textContent=t.name;root.append(back,h);
   const summary=document.createElement("p");summary.className="mb-4 rounded-xl bg-panel p-3 text-sm";summary.textContent=t.participants+" משתתפים · "+t.games.length+" משחקים · קופה ₪"+money(t.prize_pool);root.append(summary);
+  const rules=document.createElement("p");rules.className="mb-4 rounded-xl border border-gold/30 bg-panel px-4 py-3 text-sm leading-relaxed text-slate-200";rules.textContent="כולם נכנסים באותו סכום. מי שפוגע בהכי הרבה תוצאות לוקח את כל הקופה; במקרה של תיקו, הקופה מתחלקת שווה בשווה בין הזוכים.";root.append(rules);
   if(!t.joined&&t.status==="open"){
     const joinCard=document.createElement("section");joinCard.className="mb-4 rounded-2xl border-2 border-gold bg-panel p-4 shadow-lg";
     const joinTitle=document.createElement("h3");joinTitle.className="text-base font-extrabold text-gold";joinTitle.textContent="רוצה להשתתף בטורניר?";

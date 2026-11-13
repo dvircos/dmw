@@ -1849,9 +1849,6 @@ async function renderAdminTournaments(root){
     toast(`נוספו ${available} משחקים אקראיים`);
   });
   renderTournamentGames();
-    toast(`נוספו ${chosen.length} משחקים אקראיים`);
-  });
-  renderTournamentGames();
   const submit=document.createElement("button");submit.type="submit";submit.className="w-full rounded-xl bg-gold p-3 font-bold text-ink";submit.textContent="יצירת טיוטה";
   form.append(h,name,feeLabel,closeLabel,leagueLabel,league,randomRow,gl,selectionInfo,submit);
   randomRow.append(randomCount,randomButton);

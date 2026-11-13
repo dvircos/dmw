@@ -592,6 +592,14 @@
         .game-versus { font-size:.92rem; }
         .game-expanded-panel { padding:.72rem .6rem; }
       }
+      /* Admin area: compact section hub and simple user directory. */
+      .admin-section-card { display:flex; width:100%; align-items:center; gap:.85rem; margin-bottom:.65rem; padding:1rem; border:1px solid rgba(125,151,185,.25); border-radius:1.1rem; background:#1e293b; color:#f8fafc; text-align:inherit; }
+      .admin-section-card:active { transform:scale(.99); }
+      .admin-section-icon { display:flex; width:2.65rem; height:2.65rem; flex-shrink:0; align-items:center; justify-content:center; border-radius:.85rem; background:rgba(232,189,99,.13); color:#e8bd63; font-size:1.35rem; font-weight:800; }
+      body[data-theme="light"] .admin-section-card { background:#fff; color:#172554; border-color:#d7e3f2; box-shadow:0 4px 16px rgba(35,65,105,.06); }
+      body[data-theme="light"] #view-admin .bg-panel { background:#fff!important; }
+      body[data-theme="light"] #view-admin .text-slate-200,
+      body[data-theme="light"] #view-admin .text-slate-300 { color:#526581!important; }
       button:focus-visible, input:focus-visible, summary:focus-visible { outline:2px solid #e8bd63; outline-offset:2px; }
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
@@ -788,6 +796,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-06"></script>
+    <script type="module" src="./js/app.js?v=20261113-07"></script>
   </body>
 </html>

@@ -63,7 +63,7 @@ class FrontendContractTests(unittest.TestCase):
         # In RTL grid layout, the first DOM column (home) is on the right.
         # The visible left-to-right score must therefore be away-home.
         self.assertIn("teams.append(home, score, away)", app)
-        self.assertIn("${game.away_score} - ${game.home_score}", app)
+        self.assertIn('game.away_score + " - " + game.home_score', app)
         self.assertIn('[["1",game.home_odds,"1 · בית"],["X",game.draw_odds,"X · תיקו"],["2",game.away_odds,"2 · חוץ"]]', app)
         self.assertIn('if (selection === "1") return Number(game.home_odds);', app)
         self.assertIn('return Number(game.away_odds);', app)

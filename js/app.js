@@ -1766,44 +1766,89 @@ async function renderAdminTournaments(root){
   const fee=document.createElement("input");fee.type="number";fee.min="0";fee.step="0.01";fee.value="0";fee.className="mb-3 mt-1 w-full rounded-xl bg-ink p-3 text-sm";feeLabel.append(fee);
   const closeLabel=document.createElement("label");closeLabel.className="block text-xs text-mist";closeLabel.textContent="מועד סגירת הרשמה (ריק = תחילת המשחק הראשון)";
   const close=document.createElement("input");close.type="datetime-local";close.className="mb-3 mt-1 w-full rounded-xl bg-ink p-3 text-sm";closeLabel.append(close);
-  const leagueLabel=document.createElement("label");leagueLabel.className="mb-1 block text-xs text-mist";leagueLabel.textContent="סינון לפי ליגה";
-  const league=document.createElement("select");league.className="mb-2 w-full rounded-xl bg-ink p-3 text-sm";
-  const allOption=document.createElement("option");allOption.value="all";allOption.textContent="כל הליגות";league.append(allOption);
-  const leagues=[...new Set(games.map(g=>g.sportstats_league_name||"ליגה לא מסווגת"))].sort((a,b)=>a.localeCompare(b,"he"));
-  leagues.forEach(name=>{const o=document.createElement("option");o.value=name;o.textContent=name;league.append(o);});
-  const randomRow=document.createElement("div");randomRow.className="mb-2 grid grid-cols-[1fr_auto] gap-2";
-  const randomCount=document.createElement("input");randomCount.type="number";randomCount.min="1";randomCount.max="50";randomCount.value="5";randomCount.placeholder="כמה משחקים אקראיים";randomCount.className="min-w-0 rounded-xl bg-ink p-3 text-sm";
+  const searchWrap=document.createElement("div");searchWrap.className="mb-2";
+  const search=document.createElement("input");search.type="search";search.placeholder="חיפוש קבוצה או משחק...";search.className="w-full rounded-xl bg-ink p-3 text-sm";searchWrap.append(search);
+  const randomRow=document.createElement("div");randomRow.className="mb-3 grid grid-cols-[1fr_auto] gap-2";
+  const randomCount=document.createElement("input");randomCount.type="number";randomCount.min="1";randomCount.max="50";randomCount.value="5";randomCount.placeholder="מספר משחקים";randomCount.className="min-w-0 rounded-xl bg-ink p-3 text-sm";
   const randomButton=document.createElement("button");randomButton.type="button";randomButton.className="rounded-xl border border-gold px-3 py-2 text-sm font-bold text-gold";randomButton.textContent="בחירה אקראית";
-  const selectionInfo=document.createElement("p");selectionInfo.className="mb-2 text-xs text-mist";
-  const gl=document.createElement("div");gl.className="mb-3 max-h-72 overflow-y-auto rounded-xl border border-slate-700 p-2";
+  const selectionBar=document.createElement("div");selectionBar.className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-gold/40 bg-ink p-3";
+  const selectionInfo=document.createElement("strong");selectionInfo.className="text-sm text-gold";
+  const clearButton=document.createElement("button");clearButton.type="button";clearButton.className="text-xs font-bold text-slate-300 underline";clearButton.textContent="ניקוי בחירה";
+  selectionBar.append(selectionInfo,clearButton);
+  const gl=document.createElement("div");gl.className="mb-3 space-y-2";
   const selectedIds=new Set();
+  const expandedLeagues=new Set();
+  function updateSelectionInfo(){selectionInfo.textContent=`נבחרו ${selectedIds.size} מתוך 50 משחקים`;clearButton.disabled=selectedIds.size===0;clearButton.classList.toggle("opacity-40",selectedIds.size===0);}
   function renderTournamentGames(){
     gl.replaceChildren();
-    const visible=games.filter(g=>league.value==="all"||(g.sportstats_league_name||"ליגה לא מסווגת")===league.value);
+    const term=search.value.trim().toLocaleLowerCase("he");
     const groups=new Map();
-    visible.forEach(g=>{const key=g.sportstats_league_name||"ליגה לא מסווגת";if(!groups.has(key))groups.set(key,[]);groups.get(key).push(g);});
-    if(!visible.length){const p=document.createElement("p");p.className="p-3 text-xs text-mist";p.textContent="אין משחקים עתידיים בליגה שנבחרה";gl.append(p);}
-    groups.forEach((items,name)=>{
-      const section=document.createElement("section");section.className="mb-3";
-      const heading=document.createElement("div");heading.className="sticky top-0 rounded-lg bg-ink px-2 py-2 text-xs font-extrabold text-gold";heading.textContent=name+" · "+items.length+" משחקים";section.append(heading);
-      items.forEach(g=>{const l=document.createElement("label");l.className="flex items-start gap-2 p-2 text-xs";const cb=document.createElement("input");cb.type="checkbox";cb.value=g.id;cb.checked=selectedIds.has(String(g.id));cb.addEventListener("change",()=>{if(cb.checked)selectedIds.add(String(g.id));else selectedIds.delete(String(g.id));updateSelectionInfo();});const tx=document.createElement("span");tx.textContent=new Date(g.match_time).toLocaleString("he-IL")+" · "+g.home_team+" – "+g.away_team;l.append(cb,tx);section.append(l);});
+    games.forEach(g=>{
+      const leagueName=g.sportstats_league_name||"ליגה לא מסווגת";
+      const matchText=(g.home_team+" "+g.away_team+" "+leagueName).toLocaleLowerCase("he");
+      if(term&&!matchText.includes(term))return;
+      if(!groups.has(leagueName))groups.set(leagueName,[]);
+      groups.get(leagueName).push(g);
+    });
+    if(!groups.size){const p=document.createElement("p");p.className="rounded-xl border border-slate-700 p-4 text-center text-sm text-mist";p.textContent="לא נמצאו משחקים מתאימים";gl.append(p);}
+    [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0],"he")).forEach(([leagueName,items])=>{
+      const section=document.createElement("section");section.className="overflow-hidden rounded-xl border border-slate-700/70 bg-ink/50";
+      const selectedInLeague=items.filter(g=>selectedIds.has(String(g.id))).length;
+      const header=document.createElement("div");header.className="flex items-center gap-2 p-3";
+      const toggle=document.createElement("button");toggle.type="button";toggle.className="flex min-w-0 flex-1 items-center justify-between gap-2 text-right";
+      const title=document.createElement("span");title.className="min-w-0 text-sm font-bold";title.textContent=leagueName;
+      const meta=document.createElement("span");meta.className="shrink-0 text-xs text-mist";meta.textContent=selectedInLeague+" / "+items.length+" נבחרו";
+      const chevron=document.createElement("span");chevron.className="text-gold";chevron.textContent=expandedLeagues.has(leagueName)?"−":"+";
+      toggle.append(title,meta,chevron);
+      toggle.addEventListener("click",()=>{if(expandedLeagues.has(leagueName))expandedLeagues.delete(leagueName);else expandedLeagues.add(leagueName);renderTournamentGames();});
+      const selectLeague=document.createElement("button");selectLeague.type="button";selectLeague.className="shrink-0 rounded-lg border border-gold/60 px-2 py-2 text-xs font-bold text-gold";selectLeague.textContent=selectedInLeague===items.length?"בטל ליגה":"בחר ליגה";
+      selectLeague.addEventListener("click",()=>{
+        const allSelected=items.every(g=>selectedIds.has(String(g.id)));
+        if(allSelected)items.forEach(g=>selectedIds.delete(String(g.id)));
+        else{
+          const newCount=items.filter(g=>!selectedIds.has(String(g.id))).length;
+          if(selectedIds.size+newCount>50){toast("אפשר לבחור עד 50 משחקים לטורניר","error");return;}
+          items.forEach(g=>selectedIds.add(String(g.id)));
+        }
+        renderTournamentGames();
+      });
+      header.append(toggle,selectLeague);section.append(header);
+      if(expandedLeagues.has(leagueName)){
+        const list=document.createElement("div");list.className="border-t border-slate-700/70 p-2";
+        items.forEach(g=>{
+          const row=document.createElement("label");row.className="flex items-center gap-3 rounded-lg p-3 text-sm active:bg-slate-700/40";
+          const cb=document.createElement("input");cb.type="checkbox";cb.className="h-5 w-5 shrink-0 accent-yellow-500";cb.value=g.id;cb.checked=selectedIds.has(String(g.id));
+          cb.addEventListener("change",()=>{
+            if(cb.checked){if(selectedIds.size>=50){cb.checked=false;toast("אפשר לבחור עד 50 משחקים לטורניר","error");return;}selectedIds.add(String(g.id));}
+            else selectedIds.delete(String(g.id));
+            renderTournamentGames();
+          });
+          const details=document.createElement("span");details.className="min-w-0 flex-1";
+          const teams=document.createElement("span");teams.className="block font-semibold";teams.textContent=g.home_team+" – "+g.away_team;
+          const date=document.createElement("span");date.className="mt-1 block text-xs text-mist";date.textContent=new Date(g.match_time).toLocaleString("he-IL",{weekday:"short",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+          details.append(teams,date);row.append(cb,details);list.append(row);
+        });
+        section.append(list);
+      }
       gl.append(section);
     });
     updateSelectionInfo();
   }
-  function updateSelectionInfo(){selectionInfo.textContent=`נבחרו ${selectedIds.size} מתוך 50 משחקים לכל היותר`;}
-  league.addEventListener("change",renderTournamentGames);
+  search.addEventListener("input",renderTournamentGames);
+  clearButton.addEventListener("click",()=>{selectedIds.clear();renderTournamentGames();});
   randomButton.addEventListener("click",()=>{
-    const pool=games.filter(g=>(league.value==="all"||(g.sportstats_league_name||"ליגה לא מסווגת")===league.value)&&!selectedIds.has(String(g.id)));
+    const pool=games.filter(g=>!selectedIds.has(String(g.id)));
     const count=Number(randomCount.value);
     if(!Number.isInteger(count)||count<1||count>50){toast("בחר מספר בין 1 ל־50","error");return;}
+    const available=Math.min(count,50-selectedIds.size,pool.length);
+    if(!available){toast("אין משחקים נוספים לבחירה","error");return;}
     const shuffled=[...pool];
     for(let i=shuffled.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];}
-    const chosen=shuffled.slice(0,count);
-    if(!chosen.length){toast("אין משחקים נוספים לבחירה במסנן הזה","error");return;}
-    if(selectedIds.size+chosen.length>50){toast("אפשר לבחור עד 50 משחקים לטורניר","error");return;}
-    chosen.forEach(g=>selectedIds.add(String(g.id)));
+    shuffled.slice(0,available).forEach(g=>selectedIds.add(String(g.id)));
     renderTournamentGames();
+    toast(`נוספו ${available} משחקים אקראיים`);
+  });
+  renderTournamentGames();
     toast(`נוספו ${chosen.length} משחקים אקראיים`);
   });
   renderTournamentGames();

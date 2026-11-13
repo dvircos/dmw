@@ -22,6 +22,8 @@ const state = {
   marketSettings: { handicap_ft: true, total_goals_2_5: true, btts: true },
   expandedGameId: null,
   expandedMarketKey: null,
+  adminSection: "home",
+  adminSelectedUserId: null,
   gameView: "active",
   bets: [],
   betsFilter: "pending",
@@ -126,6 +128,7 @@ function showTab(tab) {
       renderSlip();
     }
   }
+  if (tab === "admin" && state.tab !== "admin") { state.adminSection = "home"; state.adminSelectedUserId = null; }
   state.tab = tab;
   if (tab === "games") state.gameView = "active";
   if (tab === "archive") state.gameView = "archive";
@@ -1161,59 +1164,298 @@ async function refreshBoard() {
   renderBoard();
 }
 
-async function refreshAdmin() {
-  if (!state.isAdmin) return;
-  const root = $("view-admin");
-  const { data, error } = await supabase.rpc("admin_list_users");
-  if (error) { empty(root, cleanError(error)); return; }
-  root.replaceChildren();
-  const title = document.createElement("h2"); title.className = "mb-3 text-xl font-extrabold text-gold"; title.textContent = "ניהול משתמשים"; root.append(title);
-  const note = document.createElement("p"); note.className = "mb-4 text-xs text-mist"; note.textContent = "איפוס יתרה ל־1,000 ₪ אינו משנה הימורים פתוחים. מחיקת משתמש היא רכה ושומרת היסטוריית הימורים."; root.append(note);
-  const marketSettingsResult = await supabase.rpc("admin_get_market_settings");
-  if (!marketSettingsResult.error) {
-    const marketCard = document.createElement("section");
-    marketCard.className = "mb-5 rounded-2xl border border-gold/25 bg-panel p-4";
-    const marketTitle = document.createElement("h3");
-    marketTitle.className = "mb-1 text-lg font-extrabold text-gold";
-    marketTitle.textContent = "ניהול סוגי הימורים";
-    const marketNote = document.createElement("p");
-    marketNote.className = "mb-3 text-xs text-mist";
-    marketNote.textContent = "הפעל או הסתר סוגי הימורים לכל המשחקים. שוק שלא קיים במשחק לא יוצג.";
-    marketCard.append(marketTitle, marketNote);
-    (marketSettingsResult.data || []).forEach((setting) => {
-      const row = document.createElement("label");
-      row.className = "flex cursor-pointer items-center justify-between gap-3 border-t border-slate-700/50 py-3";
-      const label = document.createElement("span");
-      label.className = "text-sm font-semibold";
-      label.textContent = setting.label;
-      const toggle = document.createElement("input");
-      toggle.type = "checkbox";
-      toggle.checked = Boolean(setting.enabled);
-      toggle.className = "h-5 w-5 accent-amber-400";
-      toggle.addEventListener("change", async () => {
-        toggle.disabled = true;
-        const result = await supabase.rpc("admin_set_market_setting", { p_market_key: setting.key, p_enabled: toggle.checked });
-        toggle.disabled = false;
-        if (result.error) {
-          toggle.checked = !toggle.checked;
-          toast(cleanError(result.error), "error");
-          return;
-        }
-        state.marketSettings[setting.key] = toggle.checked;
-        toast(toggle.checked ? "סוג ההימור הופעל" : "סוג ההימור הוסתר");
-        renderGames();
-      });
-      row.append(label, toggle);
-      marketCard.append(row);
-    });
-    root.append(marketCard);
-  } else {
+function adminHeader(root, titleText, backSection = "home") {
+  const header = document.createElement("div");
+  header.className = "mb-4 flex items-center gap-3";
+  const back = document.createElement("button");
+  back.type = "button";
+  back.className = "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-600/60 bg-panel text-lg";
+  back.textContent = "→";
+  back.setAttribute("aria-label", "חזרה לניהול");
+  back.addEventListener("click", () => {
+    if (state.adminSection === "users" && state.adminSelectedUserId) {
+      state.adminSelectedUserId = null;
+    } else {
+      state.adminSection = backSection;
+    }
+    refreshAdmin();
+  });
+  const title = document.createElement("h2");
+  title.className = "text-xl font-extrabold text-gold";
+  title.textContent = titleText;
+  header.append(back, title);
+  root.append(header);
+}
+
+function adminSectionButton(root, title, subtitle, icon, section) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "admin-section-card";
+  const symbol = document.createElement("span");
+  symbol.className = "admin-section-icon";
+  symbol.textContent = icon;
+  const copy = document.createElement("span");
+  copy.className = "min-w-0 flex-1 text-right";
+  const heading = document.createElement("strong");
+  heading.className = "block text-base font-extrabold";
+  heading.textContent = title;
+  const description = document.createElement("span");
+  description.className = "mt-1 block text-xs text-mist";
+  description.textContent = subtitle;
+  copy.append(heading, description);
+  const arrow = document.createElement("span");
+  arrow.className = "text-xl text-gold";
+  arrow.textContent = "←";
+  button.append(symbol, copy, arrow);
+  button.addEventListener("click", () => {
+    state.adminSection = section;
+    state.adminSelectedUserId = null;
+    refreshAdmin();
+  });
+  root.append(button);
+}
+
+async function renderAdminHome(root) {
+  const heading = document.createElement("h2");
+  heading.className = "mb-1 text-2xl font-extrabold text-gold";
+  heading.textContent = "מרכז ניהול";
+  const intro = document.createElement("p");
+  intro.className = "mb-4 text-sm text-mist";
+  intro.textContent = "בחר אזור לניהול ולבקרה";
+  root.append(heading, intro);
+
+  const [users, requests, games] = await Promise.all([
+    supabase.rpc("admin_list_users"),
+    supabase.rpc("admin_recent_api_requests", { p_limit: 100 }),
+    supabase.from("games").select("id", { count: "exact", head: true })
+  ]);
+  const userRows = Array.isArray(users.data) ? users.data : [];
+  const requestRows = Array.isArray(requests.data) ? requests.data : [];
+  const failed = requestRows.filter((row) => Number(row.status_code) >= 400).length;
+  const stats = document.createElement("div");
+  stats.className = "mb-5 grid grid-cols-3 gap-2";
+  [
+    [userRows.length, "משתמשים"],
+    [games.count ?? "—", "משחקים"],
+    [failed, "פניות שנכשלו"]
+  ].forEach(([value, label]) => {
+    const tile = document.createElement("div");
+    tile.className = "rounded-xl border border-slate-700/50 bg-panel p-3 text-center";
+    const number = document.createElement("strong");
+    number.className = "block text-xl font-extrabold text-gold";
+    number.textContent = String(value);
+    const caption = document.createElement("span");
+    caption.className = "mt-1 block text-[11px] text-mist";
+    caption.textContent = label;
+    tile.append(number, caption);
+    stats.append(tile);
+  });
+  root.append(stats);
+  adminSectionButton(root, "בקרה", "תמונת מצב של המערכת", "◉", "control");
+  adminSectionButton(root, "משתמשים", "רשימה קצרה ופעולות משתמש", "♙", "users");
+  adminSectionButton(root, "שווקים", "הפעלה והסתרה של סוגי הימורים", "▦", "markets");
+  adminSectionButton(root, "הכרעות", "שווקים שממתינים לתוצאה", "✓", "settlements");
+  adminSectionButton(root, "דוחות ריצות", "כל פנייה לספק, שעה, סטטוס ותשובה", "↻", "runs");
+  adminSectionButton(root, "יומן מנהל", "מעקב אחר שינויים שבוצעו בניהול", "☷", "audit");
+}
+
+async function renderAdminControl(root) {
+  adminHeader(root, "בקרה");
+  const [requests, games, users] = await Promise.all([
+    supabase.rpc("admin_recent_api_requests", { p_limit: 100 }),
+    supabase.from("games").select("id", { count: "exact", head: true }),
+    supabase.rpc("admin_list_users")
+  ]);
+  if (requests.error) {
     const warning = document.createElement("p");
-    warning.className = "mb-4 rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-200";
-    warning.textContent = "לא ניתן לטעון את הגדרות סוגי ההימורים. בדוק את מיגרציות Winner ב־Supabase.";
+    warning.className = "rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300";
+    warning.textContent = "לא ניתן לטעון נתוני ריצות: " + cleanError(requests.error);
     root.append(warning);
   }
-  const unsettledResult = await supabase
+  const rows = Array.isArray(requests.data) ? requests.data : [];
+  const failed = rows.filter((row) => Number(row.status_code) >= 400);
+  const success = rows.filter((row) => Number(row.status_code) >= 200 && Number(row.status_code) < 300);
+  const last = rows[0];
+  const tiles = document.createElement("div");
+  tiles.className = "grid grid-cols-2 gap-3";
+  [
+    [String(Array.isArray(users.data) ? users.data.length : "—"), "משתמשים"],
+    [String(games.count ?? "—"), "משחקים במערכת"],
+    [String(success.length), "פניות מוצלחות · 100 אחרונות"],
+    [String(failed.length), "פניות שנכשלו · 100 אחרונות"]
+  ].forEach(([value, label]) => {
+    const tile = document.createElement("div");
+    tile.className = "rounded-2xl border border-slate-700/50 bg-panel p-4";
+    const strong = document.createElement("strong");
+    strong.className = "block text-2xl font-extrabold text-gold";
+    strong.textContent = value;
+    const caption = document.createElement("span");
+    caption.className = "mt-1 block text-xs text-mist";
+    caption.textContent = label;
+    tile.append(strong, caption);
+    tiles.append(tile);
+  });
+  root.append(tiles);
+  const lastRun = document.createElement("div");
+  lastRun.className = "mt-4 rounded-2xl border border-slate-700/50 bg-panel p-4";
+  const lastTitle = document.createElement("h3");
+  lastTitle.className = "mb-2 font-bold";
+  lastTitle.textContent = "הפנייה האחרונה";
+  const lastText = document.createElement("p");
+  lastText.className = "text-sm text-mist";
+  lastText.textContent = last
+    ? new Date(last.called_at).toLocaleString("he-IL") + " · " + (last.purpose || last.endpoint) + " · HTTP " + (last.status_code ?? "—")
+    : "עדיין אין פניות מתועדות";
+  lastRun.append(lastTitle, lastText);
+  root.append(lastRun);
+  const go = document.createElement("button");
+  go.type = "button";
+  go.className = "mt-4 w-full rounded-xl bg-gold px-4 py-3 font-bold text-ink";
+  go.textContent = "פתיחת דוחות ריצות";
+  go.addEventListener("click", () => { state.adminSection = "runs"; refreshAdmin(); });
+  root.append(go);
+}
+
+async function renderAdminUsers(root) {
+  const { data, error } = await supabase.rpc("admin_list_users");
+  if (error) { empty(root, cleanError(error)); return; }
+  const users = Array.isArray(data) ? data : [];
+  const selected = users.find((user) => String(user.id) === String(state.adminSelectedUserId));
+  if (!selected) {
+    adminHeader(root, "משתמשים");
+    const note = document.createElement("p");
+    note.className = "mb-3 text-xs text-mist";
+    note.textContent = users.length + " משתמשים · לחיצה על שם פותחת פעולות";
+    root.append(note);
+    const list = document.createElement("div");
+    list.className = "overflow-hidden rounded-2xl border border-slate-700/60 bg-panel";
+    users.forEach((user) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "flex w-full items-center justify-between gap-3 border-b border-slate-700/50 px-4 py-3 text-right last:border-b-0";
+      const name = document.createElement("span");
+      name.className = "min-w-0 truncate text-sm font-bold";
+      name.textContent = (user.username || "ללא שם") + (user.is_deleted ? " · נמחק" : "");
+      const balance = document.createElement("span");
+      balance.className = "shrink-0 text-sm font-bold text-gold";
+      balance.textContent = "₪" + money(user.balance);
+      row.append(name, balance);
+      row.addEventListener("click", () => { state.adminSelectedUserId = user.id; refreshAdmin(); });
+      list.append(row);
+    });
+    root.append(list);
+    return;
+  }
+
+  adminHeader(root, selected.username || "פרטי משתמש", "users");
+  const info = document.createElement("div");
+  info.className = "mb-4 rounded-2xl border border-slate-700/50 bg-panel p-4";
+  const balance = document.createElement("p");
+  balance.className = "text-lg font-extrabold text-gold";
+  balance.textContent = "יתרה: ₪" + money(selected.balance);
+  const pending = document.createElement("p");
+  pending.className = "mt-1 text-xs text-mist";
+  pending.textContent = "הימורים פתוחים: " + selected.pending_bets;
+  info.append(balance, pending);
+  root.append(info);
+  if (selected.is_deleted) return;
+
+  const actions = document.createElement("div");
+  actions.className = "grid grid-cols-2 gap-2";
+  const actionButton = (label, style, handler) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = style;
+    button.textContent = label;
+    button.addEventListener("click", handler);
+    actions.append(button);
+    return button;
+  };
+  actionButton("שינוי שם משתמש", "rounded-xl border border-gold/50 px-3 py-3 text-sm font-semibold text-gold", async (event) => {
+    const nextName = prompt("שם משתמש חדש:", selected.username);
+    if (nextName === null) return;
+    const username = nextName.trim();
+    if (username === selected.username) return;
+    const result = await supabase.rpc("admin_update_username", { p_user_id: selected.id, p_username: username });
+    if (result.error) { toast(cleanError(result.error), "error"); return; }
+    toast("שם המשתמש עודכן");
+    await refreshAdmin();
+    await refreshBoard();
+    await refreshProfile();
+  });
+  actionButton("איפוס ל־1,000 ₪", "rounded-xl bg-gold px-3 py-3 text-sm font-bold text-ink", async () => {
+    if (!confirm("לאפס את היתרה של " + selected.username + " ל־1,000 ₪? ההימורים הפתוחים יישארו ללא שינוי.")) return;
+    const result = await supabase.rpc("admin_set_balance", { p_user_id: selected.id, p_balance: 1000, p_reason: "reset_to_1000" });
+    if (result.error) toast(cleanError(result.error), "error");
+    else { toast("היתרה אופסה"); refreshAdmin(); refreshBoard(); }
+  });
+  actionButton("קביעת יתרה", "rounded-xl border border-slate-600 px-3 py-3 text-sm", async () => {
+    const raw = prompt("יתרה חדשה:", String(selected.balance));
+    if (raw === null) return;
+    const amount = Number(raw);
+    if (!Number.isFinite(amount) || amount < 0) { toast("סכום לא תקין", "error"); return; }
+    const result = await supabase.rpc("admin_set_balance", { p_user_id: selected.id, p_balance: amount, p_reason: "manual_adjustment" });
+    if (result.error) toast(cleanError(result.error), "error");
+    else { toast("היתרה עודכנה"); refreshAdmin(); refreshBoard(); }
+  });
+  actionButton("היסטוריית הימורים", "rounded-xl border border-slate-600 px-3 py-3 text-sm", async () => {
+    const result = await supabase.rpc("admin_user_bets", { p_user_id: selected.id });
+    if (result.error) { toast(cleanError(result.error), "error"); return; }
+    const lines = (result.data || []).slice(0, 12).map((bet) => "#" + bet.id + " · ₪" + money(bet.bet_amount) + " · " + bet.status + " · יחס " + bet.odds).join("\n");
+    alert(lines || "אין הימורים למשתמש זה");
+  });
+  actionButton("מחיקת משתמש", "col-span-2 rounded-xl border border-rose-500/50 px-3 py-3 text-sm text-rose-300", async () => {
+    if (!confirm("לסמן את " + selected.username + " כמחוק? היסטוריית ההימורים תישמר והוא יוסתר מהטבלה.")) return;
+    const result = await supabase.rpc("admin_soft_delete_user", { p_user_id: selected.id });
+    if (result.error) toast(cleanError(result.error), "error");
+    else { state.adminSelectedUserId = null; toast("המשתמש סומן כמחוק וההיסטוריה נשמרה"); refreshAdmin(); refreshBoard(); }
+  });
+  root.append(actions);
+}
+
+async function renderAdminMarkets(root) {
+  adminHeader(root, "שווקים");
+  const result = await supabase.rpc("admin_get_market_settings");
+  if (result.error) { empty(root, cleanError(result.error)); return; }
+  const card = document.createElement("section");
+  card.className = "rounded-2xl border border-slate-700/50 bg-panel p-4";
+  const note = document.createElement("p");
+  note.className = "mb-3 text-xs text-mist";
+  note.textContent = "הפעל או הסתר סוגי הימורים לכל המשחקים. שוק שלא קיים במשחק לא יוצג.";
+  card.append(note);
+  (result.data || []).forEach((setting) => {
+    const row = document.createElement("label");
+    row.className = "flex cursor-pointer items-center justify-between gap-3 border-t border-slate-700/50 py-3";
+    const label = document.createElement("span");
+    label.className = "text-sm font-semibold";
+    label.textContent = setting.label;
+    const toggle = document.createElement("input");
+    toggle.type = "checkbox";
+    toggle.checked = Boolean(setting.enabled);
+    toggle.className = "h-5 w-5 accent-amber-400";
+    toggle.addEventListener("change", async () => {
+      toggle.disabled = true;
+      const savedValue = toggle.checked;
+      const update = await supabase.rpc("admin_set_market_setting", { p_market_key: setting.key, p_enabled: savedValue });
+      toggle.disabled = false;
+      if (update.error) {
+        toggle.checked = !savedValue;
+        toast(cleanError(update.error), "error");
+        return;
+      }
+      state.marketSettings[setting.key] = savedValue;
+      toast(savedValue ? "סוג ההימור הופעל" : "סוג ההימור הוסתר");
+      renderGames();
+    });
+    row.append(label, toggle);
+    card.append(row);
+  });
+  root.append(card);
+}
+
+async function renderAdminSettlements(root) {
+  adminHeader(root, "הכרעות");
+  const result = await supabase
     .from("winner_markets")
     .select("id,market_key,market_label,outcomes,games!inner(home_team,away_team,status,result_confirmed)")
     .eq("active", true)
@@ -1222,110 +1464,161 @@ async function refreshAdmin() {
     .eq("games.result_confirmed", true)
     .order("id", { ascending: false })
     .limit(80);
-  const manualMarkets = (unsettledResult.data || []).filter((market) =>
+  if (result.error) { empty(root, "לא ניתן לטעון שווקים להכרעה: " + cleanError(result.error)); return; }
+  const markets = (result.data || []).filter((market) =>
     !["handicap_ft", "total_goals_2_5", "btts"].includes(market.market_key)
   );
-  if (!unsettledResult.error && manualMarkets.length) {
-    const settleCard = document.createElement("section");
-    settleCard.className = "mb-5 rounded-2xl border border-amber-400/30 bg-panel p-4";
-    const settleTitle = document.createElement("h3");
-    settleTitle.className = "mb-1 text-lg font-extrabold text-amber-200";
-    settleTitle.textContent = "הכרעת שווקים שהסתיימו";
-    const settleNote = document.createElement("p");
-    settleNote.className = "mb-3 text-xs text-mist";
-    settleNote.textContent = "שווקים כמו קרנות, מבקיע ראשון ותוצאות מחצית דורשים נתון שלא מגיע מסנכרון התוצאה הרגיל. בחר את התוצאה הזוכה לאחר בדיקה.";
-    settleCard.append(settleTitle, settleNote);
-    manualMarkets.forEach((market) => {
-      const game = market.games || {};
-      const item = document.createElement("div");
-      item.className = "border-t border-slate-700/60 py-3";
-      const heading = document.createElement("p");
-      heading.className = "mb-2 text-sm font-bold text-slate-100";
-      heading.textContent = (game.home_team || "משחק") + " – " + (game.away_team || "") + " · " + market.market_label;
-      item.append(heading);
-      const outcomes = document.createElement("div");
-      outcomes.className = "grid grid-cols-2 gap-2";
-      (Array.isArray(market.outcomes) ? market.outcomes : []).forEach((outcome) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "rounded-lg border border-slate-700 bg-ink/50 px-2 py-2 text-xs text-slate-200";
-        button.textContent = (outcome.label || outcome.selection) + " · " + Number(outcome.price).toFixed(2);
-        button.addEventListener("click", async () => {
-          if (!confirm("לקבוע ש-" + (outcome.label || outcome.selection) + " היא התוצאה הזוכה בשוק הזה?")) return;
-          button.disabled = true;
-          const result = await supabase.rpc("admin_settle_winner_market", {
-            p_market_id: Number(market.id),
-            p_winning_selection: outcome.selection
-          });
-          if (result.error) {
-            button.disabled = false;
-            toast(cleanError(result.error), "error");
-            return;
-          }
-          toast("השוק הוכרע והטפסים עודכנו");
-          await refreshAdmin();
-          await refreshBets();
-          await refreshBoard();
-        });
-        outcomes.append(button);
-      });
-      item.append(outcomes);
-      settleCard.append(item);
-    });
-    root.append(settleCard);
-  } else if (unsettledResult.error) {
-    const warning = document.createElement("p");
-    warning.className = "mb-4 text-xs text-rose-300";
-    warning.textContent = "לא ניתן לטעון שווקים להכרעה: " + cleanError(unsettledResult.error);
-    root.append(warning);
+  if (!markets.length) {
+    const none = document.createElement("p");
+    none.className = "rounded-2xl border border-slate-700/50 bg-panel p-4 text-sm text-mist";
+    none.textContent = "אין כרגע שווקים שממתינים להכרעה ידנית.";
+    root.append(none);
+    return;
   }
-  (Array.isArray(data) ? data : []).forEach(user => {
-    const card = document.createElement("article"); card.className = "mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
-    const head = document.createElement("div"); head.className = "mb-3 flex items-center justify-between gap-2";
-    const name = document.createElement("strong"); name.textContent = user.is_deleted ? `${user.username} · נמחק` : user.username;
-    const balance = document.createElement("span"); balance.className = "font-bold text-gold"; balance.textContent = `₪${money(user.balance)}`; head.append(name,balance); card.append(head);
-    const meta = document.createElement("p"); meta.className = "mb-3 text-xs text-mist"; meta.textContent = `הימורים פתוחים: ${user.pending_bets}`; card.append(meta);
-    if (!user.is_deleted) {
-      const actionDetails = document.createElement("details"); actionDetails.className = "mt-3 rounded-xl border border-slate-700/60 bg-ink/30 p-2";
-      const actionSummary = document.createElement("summary"); actionSummary.className = "cursor-pointer list-none px-2 py-2 text-sm font-bold text-slate-200"; actionSummary.textContent = "פעולות משתמש ▾";
-      const actions = document.createElement("div"); actions.className = "mt-2 grid grid-cols-2 gap-2";
-      const rename = document.createElement("button"); rename.className = "rounded-xl border border-gold/50 px-3 py-2 text-sm font-semibold text-gold"; rename.textContent = "שינוי שם משתמש";
-      rename.addEventListener("click", async () => {
-        const nextName = prompt(`שם משתמש חדש עבור ${user.username}:`, user.username);
-        if (nextName === null) return;
-        const username = nextName.trim();
-        if (username === user.username) return;
-        rename.disabled = true;
-        const result = await supabase.rpc("admin_update_username", { p_user_id: user.id, p_username: username });
-        rename.disabled = false;
-        if (result.error) { toast(cleanError(result.error), "error"); return; }
-        toast("שם המשתמש עודכן");
+  const note = document.createElement("p");
+  note.className = "mb-3 text-xs text-mist";
+  note.textContent = "שווקים כמו קרנות, מבקיע ראשון ותוצאות מחצית דורשים נתון שלא מגיע מסנכרון התוצאה הרגיל. בחר את התוצאה הזוכה לאחר בדיקה.";
+  root.append(note);
+  markets.forEach((market) => {
+    const game = market.games || {};
+    const item = document.createElement("section");
+    item.className = "mb-3 rounded-2xl border border-amber-400/30 bg-panel p-4";
+    const heading = document.createElement("h3");
+    heading.className = "mb-3 text-sm font-bold";
+    heading.textContent = (game.home_team || "משחק") + " – " + (game.away_team || "") + " · " + market.market_label;
+    const outcomes = document.createElement("div");
+    outcomes.className = "grid grid-cols-2 gap-2";
+    (Array.isArray(market.outcomes) ? market.outcomes : []).forEach((outcome) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "rounded-lg border border-slate-700 bg-ink/50 px-2 py-3 text-xs text-slate-200";
+      button.textContent = (outcome.label || outcome.selection) + " · " + Number(outcome.price).toFixed(2);
+      button.addEventListener("click", async () => {
+        if (!confirm("לקבוע ש-" + (outcome.label || outcome.selection) + " היא התוצאה הזוכה בשוק הזה?")) return;
+        button.disabled = true;
+        const settle = await supabase.rpc("admin_settle_winner_market", { p_market_id: Number(market.id), p_winning_selection: outcome.selection });
+        if (settle.error) {
+          button.disabled = false;
+          toast(cleanError(settle.error), "error");
+          return;
+        }
+        toast("השוק הוכרע והטפסים עודכנו");
         await refreshAdmin();
+        await refreshBets();
         await refreshBoard();
-        await refreshProfile();
       });
-      const reset = document.createElement("button"); reset.className = "rounded-xl bg-gold px-3 py-2 text-sm font-bold text-ink"; reset.textContent = "איפוס ל־1,000 ₪";
-      reset.addEventListener("click", async () => { if (!confirm(`לאפס את היתרה של ${user.username} ל־1,000 ₪? ההימורים הפתוחים יישארו ללא שינוי.`)) return; const r=await supabase.rpc("admin_set_balance",{p_user_id:user.id,p_balance:1000,p_reason:"reset_to_1000"}); if(r.error) toast(cleanError(r.error),"error"); else { toast("היתרה אופסה; ההימורים נשארו ללא שינוי"); refreshAdmin(); refreshBoard(); } });
-      const manual = document.createElement("button"); manual.className = "rounded-xl border border-slate-600 px-3 py-2 text-sm"; manual.textContent = "קביעת יתרה";
-      manual.addEventListener("click", async () => { const raw=prompt(`יתרה חדשה עבור ${user.username}:`,String(user.balance)); if(raw===null)return; const amount=Number(raw); if(!Number.isFinite(amount)||amount<0){toast("סכום לא תקין","error");return;} const r=await supabase.rpc("admin_set_balance",{p_user_id:user.id,p_balance:amount,p_reason:"manual_adjustment"}); if(r.error)toast(cleanError(r.error),"error");else{toast("היתרה עודכנה");refreshAdmin();refreshBoard();} });
-      const history = document.createElement("button"); history.className = "rounded-xl border border-slate-600 px-3 py-2 text-sm"; history.textContent = "היסטוריית הימורים";
-      history.addEventListener("click", async () => { const r=await supabase.rpc("admin_user_bets",{p_user_id:user.id}); if(r.error){toast(cleanError(r.error),"error");return;} const lines=(r.data||[]).slice(0,12).map(b=>`#${b.id} · ₪${money(b.bet_amount)} · ${b.status} · יחס ${b.odds}`).join("\n"); alert(lines||"אין הימורים למשתמש זה"); });
-      const del = document.createElement("button"); del.className = "rounded-xl border border-rose-500/50 px-3 py-2 text-sm text-rose-300"; del.textContent = "מחיקת משתמש";
-      del.addEventListener("click", async () => { if(!confirm(`לסמן את ${user.username} כמחוק? היסטוריית ההימורים תישמר והוא יוסתר מהטבלה.`))return; const r=await supabase.rpc("admin_soft_delete_user",{p_user_id:user.id}); if(r.error)toast(cleanError(r.error),"error");else{toast("המשתמש סומן כמחוק וההיסטוריה נשמרה");refreshAdmin();refreshBoard();} });
-      actions.append(rename,reset,manual,history,del); actionDetails.append(actionSummary,actions); card.append(actionDetails);
-    }
+      outcomes.append(button);
+    });
+    item.append(heading, outcomes);
+    root.append(item);
+  });
+}
+
+async function renderAdminRuns(root) {
+  adminHeader(root, "דוחות ריצות");
+  const result = await supabase.rpc("admin_recent_api_requests", { p_limit: 200 });
+  if (result.error) { empty(root, cleanError(result.error)); return; }
+  const rows = Array.isArray(result.data) ? result.data : [];
+  const summary = document.createElement("p");
+  summary.className = "mb-3 text-xs text-mist";
+  summary.textContent = rows.length + " פניות אחרונות · מסודרות מהחדשה לישנה";
+  root.append(summary);
+  if (!rows.length) {
+    const none = document.createElement("p");
+    none.className = "rounded-xl bg-panel p-4 text-sm text-mist";
+    none.textContent = "עדיין לא נרשמו פניות.";
+    root.append(none);
+    return;
+  }
+  rows.forEach((entry) => {
+    const card = document.createElement("article");
+    card.className = "mb-2 rounded-2xl border border-slate-700/50 bg-panel p-3";
+    const top = document.createElement("div");
+    top.className = "flex items-center justify-between gap-2";
+    const time = document.createElement("time");
+    time.className = "text-xs text-mist";
+    time.dateTime = entry.called_at;
+    time.textContent = new Date(entry.called_at).toLocaleString("he-IL");
+    const status = document.createElement("span");
+    const code = Number(entry.status_code);
+    status.className = "rounded-lg px-2 py-1 text-xs font-extrabold " + (code >= 400 ? "bg-rose-500/15 text-rose-300" : code >= 200 && code < 300 ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-400/15 text-amber-200");
+    status.textContent = "HTTP " + (entry.status_code ?? "—");
+    top.append(time, status);
+    const endpoint = document.createElement("p");
+    endpoint.className = "mt-2 break-all text-sm font-bold";
+    endpoint.textContent = entry.endpoint || "פנייה ללא כתובת";
+    const purpose = document.createElement("p");
+    purpose.className = "mt-1 text-xs text-mist";
+    purpose.textContent = "מטרה: " + (entry.purpose || "לא צוינה") + (entry.duration_ms != null ? " · " + entry.duration_ms + "ms" : "");
+    card.append(top, endpoint, purpose);
+    const details = document.createElement("details");
+    details.className = "mt-2 rounded-xl border border-slate-700/50 bg-ink/30 p-2";
+    const summaryLine = document.createElement("summary");
+    summaryLine.className = "cursor-pointer text-xs font-bold text-gold";
+    summaryLine.textContent = "פרטי הפנייה והתשובה";
+    const requestTitle = document.createElement("p");
+    requestTitle.className = "mt-2 text-[11px] font-bold text-slate-300";
+    requestTitle.textContent = "פרמטרים שנשלחו / פרטי הבדיקה";
+    const requestData = document.createElement("pre");
+    requestData.className = "mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words text-[11px] text-mist";
+    requestData.textContent = JSON.stringify(entry.params || {}, null, 2);
+    const responseTitle = document.createElement("p");
+    responseTitle.className = "mt-2 text-[11px] font-bold text-slate-300";
+    responseTitle.textContent = "תשובת הספק";
+    const responseData = document.createElement("pre");
+    responseData.className = "mt-1 max-h-56 overflow-auto whitespace-pre-wrap break-words text-[11px] text-mist";
+    responseData.textContent = entry.response_summary
+      ? JSON.stringify(entry.response_summary, null, 2)
+      : "תוכן התשובה לא נשמר ברישום המקורי. נשמרו קוד הסטטוס והפרמטרים בלבד.";
+    details.append(summaryLine, requestTitle, requestData, responseTitle, responseData);
+    card.append(details);
     root.append(card);
   });
-  const auditTitle = document.createElement("h3"); auditTitle.className = "mb-2 mt-6 text-lg font-bold"; auditTitle.textContent = "יומן פעולות מנהל"; root.append(auditTitle);
-  const audit = await supabase.rpc("admin_recent_audit");
-  if (!audit.error) {
-    (audit.data || []).slice(0,20).forEach(entry => {
-      const row=document.createElement("p"); row.className="mb-1 rounded-xl bg-ink/60 px-3 py-2 text-xs text-mist";
-      const date=new Date(entry.created_at).toLocaleString("he-IL");
-      const details=entry.details||{};
-      const description=entry.action==="set_balance" ? `יתרה: ${details.old_balance} ← ${details.new_balance} ₪` : "משתמש סומן כמחוק";
-      row.textContent=`${date} · ${description}`; root.append(row);
-    });
+}
+
+async function renderAdminAudit(root) {
+  adminHeader(root, "יומן מנהל");
+  const result = await supabase.rpc("admin_recent_audit");
+  if (result.error) { empty(root, cleanError(result.error)); return; }
+  const entries = Array.isArray(result.data) ? result.data : [];
+  if (!entries.length) {
+    const none = document.createElement("p");
+    none.className = "rounded-xl bg-panel p-4 text-sm text-mist";
+    none.textContent = "אין עדיין פעולות מנהל ביומן.";
+    root.append(none);
+    return;
+  }
+  entries.forEach((entry) => {
+    const row = document.createElement("p");
+    row.className = "mb-2 rounded-xl bg-panel px-3 py-3 text-xs text-mist";
+    const date = new Date(entry.created_at).toLocaleString("he-IL");
+    const details = entry.details || {};
+    const description = entry.action === "set_balance"
+      ? "יתרה: " + details.old_balance + " ← " + details.new_balance + " ₪"
+      : entry.action === "soft_delete_user" ? "משתמש סומן כמחוק" : entry.action;
+    row.textContent = date + " · " + description;
+    root.append(row);
+  });
+}
+
+async function refreshAdmin() {
+  if (!state.isAdmin) return;
+  const root = $("view-admin");
+  root.replaceChildren();
+  const sections = {
+    home: renderAdminHome,
+    control: renderAdminControl,
+    users: renderAdminUsers,
+    markets: renderAdminMarkets,
+    settlements: renderAdminSettlements,
+    runs: renderAdminRuns,
+    audit: renderAdminAudit
+  };
+  const render = sections[state.adminSection] || renderAdminHome;
+  try {
+    await render(root);
+  } catch (error) {
+    empty(root, cleanError(error));
   }
 }
 

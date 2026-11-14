@@ -81,6 +81,13 @@ class SportStatsParsingTests(unittest.TestCase):
         self.assertEqual(team_logo_url({"logo": "https://example.com/wrong.png"}, "France"),
                          "https://flagcdn.com/w80/fr.png")
 
+    def test_malaga_uses_official_laliga_crest_not_milan(self):
+        from sync_sportstats import team_logo_url
+        self.assertEqual(
+            team_logo_url({"logo": "https://crests.football-data.org/98.png"}, "Malaga"),
+            "https://assets.laliga.com/assets/2019/06/07/xsmall/malaga.png",
+        )
+
     def test_full_time_result_uses_regular_time_team_scores(self):
         row = {
             "status": "FT", "status_code": "final",

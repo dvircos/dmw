@@ -105,16 +105,24 @@ def team_display(name: str) -> str:
     return entry[0] if entry else hebrew_name(name)
 
 def team_logo_url(team: dict[str, Any], name: str) -> str | None:
-    # Prefer a provider-supplied image URL when present in the list payload.
-    for key in ("logo", "image", "badge", "crest", "logo_url", "image_url"):
-        value = team.get(key)
-        if isinstance(value, str) and value.startswith("https://"):
-            return value
+    # Verified mappings must win over provider images: provider logos have
+    # previously been assigned to the wrong club (e.g. Hull City / Liverpool).
     key = normalize(name)
     if key in UCL_LOGOS:
         return f"https://a.espncdn.com/i/teamlogos/soccer/500/{UCL_LOGOS[key]}.png"
     entry = CLUBS.get(key)
-    return f"https://crests.football-data.org/{entry[1]}.png" if entry else safe_team_flag(name)
+    if entry:
+        return f"https://crests.football-data.org/{entry[1]}.png"
+    # National-team flags are deterministic too; do not trust club-logo fields
+    # returned alongside international fixtures.
+    if key in FLAGS:
+        return flag_url(name, None)
+    # Unknown clubs may still use a provider-supplied HTTPS crest.
+    for field in ("logo", "image", "badge", "crest", "logo_url", "image_url"):
+        value = team.get(field)
+        if isinstance(value, str) and value.startswith("https://"):
+            return value
+    return safe_team_flag(name)
 
 
 def safe_team_flag(name: str) -> str | None:

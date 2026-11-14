@@ -94,6 +94,7 @@ begin
           sportstats_away_team_code = p_away_team_code,
           sportstats_api_home_name = p_api_home_name,
           sportstats_api_away_name = p_api_away_name,
+          round_name = p_round_name,
           home_flag = coalesce(p_home_flag,home_flag),
           away_flag = coalesce(p_away_flag,away_flag)
       where id = v_game.id
@@ -124,6 +125,7 @@ begin
         sportstats_away_team_code = p_away_team_code,
         sportstats_api_home_name = p_api_home_name,
         sportstats_api_away_name = p_api_away_name,
+        round_name = p_round_name,
         home_flag = coalesce(p_home_flag,home_flag),
         away_flag = coalesce(p_away_flag,away_flag)
     where id = v_game.id

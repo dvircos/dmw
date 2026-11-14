@@ -69,6 +69,18 @@ class SportStatsParsingTests(unittest.TestCase):
                             f"crest ID {crest_id} is shared by {previous} and {hebrew} (alias {alias})")
             crest_owners[crest_id] = hebrew
 
+    def test_verified_club_crests_override_provider_supplied_images(self):
+        from sync_sportstats import team_logo_url
+        wrong = {"logo": "https://crests.football-data.org/64.png"}
+        self.assertEqual(team_logo_url(wrong, "Hull"), "https://crests.football-data.org/322.png")
+        self.assertEqual(team_logo_url({"logo": "https://example.com/wrong.png"}, "Atl. Madrid"),
+                         "https://crests.football-data.org/78.png")
+
+    def test_national_team_flags_override_provider_supplied_images(self):
+        from sync_sportstats import team_logo_url
+        self.assertEqual(team_logo_url({"logo": "https://example.com/wrong.png"}, "France"),
+                         "https://flagcdn.com/w80/fr.png")
+
     def test_full_time_result_uses_regular_time_team_scores(self):
         row = {
             "status": "FT", "status_code": "final",

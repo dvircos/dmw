@@ -110,6 +110,10 @@ def team_logo_url(team: dict[str, Any], name: str) -> str | None:
     key = normalize(name)
     if key in UCL_LOGOS:
         return f"https://a.espncdn.com/i/teamlogos/soccer/500/{UCL_LOGOS[key]}.png"
+    # Official Málaga CF crest from LALIGA; do not use football-data ID 98
+    # (that asset belongs to AC Milan).
+    if key in {"malaga", "málaga", "malaga cf", "málaga cf"}:
+        return "https://assets.laliga.com/assets/2019/06/07/xsmall/malaga.png"
     entry = CLUBS.get(key)
     if entry:
         return f"https://crests.football-data.org/{entry[1]}.png"

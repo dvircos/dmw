@@ -82,15 +82,27 @@ export function canEdit(bet) {
 }
 
 export function leagueKey(game) {
+  // Provider league IDs are the canonical source. round_name is legacy display
+  // metadata and can vary between provider languages or older imported rows.
+  const providerLeague = String(game?.sportstats_league_code || "").trim().toLowerCase();
+  const providerMap = {
+    l30: "england",
+    l6t: "spain",
+    l46: "israel",
+    lml: "nations",
+    l3: "ucl",
+  };
+  if (providerMap[providerLeague]) return providerMap[providerLeague];
+
   const name = String(game?.round_name || "");
-  const code = name.split("|")[0];
+  const code = name.split("|")[0].trim().toLowerCase();
   if (["israel", "ucl", "spain", "england", "nations"].includes(code)) return code;
   const text = name.toLowerCase();
   if (text.includes("nations league") || text.includes("אומות")) return "nations";
-  if (text.includes("champions league") || text.includes("צ'מפיונס")) return "ucl";
+  if (text.includes("champions league") || text.includes("צ'מפיונס") || text.includes("ליגת האלופות")) return "ucl";
   if (text.includes("la liga") || text.includes("laliga") || text.includes("ספרד")) return "spain";
-  if (text.includes("premier league") || text.includes("אנגליה")) return "england";
-  if (text.includes("israeli") || text.includes("ליגת העל")) return "israel";
+  if (text.includes("premier league") || text.includes("אנגליה") || text.includes("אנגלית")) return "england";
+  if (text.includes("israeli") || text.includes("ליגת העל") || text.includes("ישראל")) return "israel";
   return "";
 }
 

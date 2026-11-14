@@ -33,6 +33,16 @@ class FrontendContractTests(unittest.TestCase):
         self.assertIn('.in("status", ["finished", "cancelled"])', app)
         self.assertIn("async function loadMoreArchive()", app)
 
+    def test_all_supported_sportstats_leagues_route_by_provider_code(self):
+        fmt = (ROOT / "js" / "format.js").read_text(encoding="utf-8")
+        self.assertIn("l30: \"england\"", fmt)
+        self.assertIn("l6t: \"spain\"", fmt)
+        self.assertIn("l46: \"israel\"", fmt)
+        self.assertIn("lml: \"nations\"", fmt)
+        self.assertIn("l3: \"ucl\"", fmt)
+        self.assertIn("ליגת האלופות", fmt)
+        self.assertIn("אנגלית", fmt)
+
     def test_service_worker_never_returns_html_for_missing_assets(self):
         sw = (ROOT / "sw.js").read_text(encoding="utf-8")
         self.assertIn('request.mode === "navigate"', sw)

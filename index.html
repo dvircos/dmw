@@ -88,6 +88,21 @@
       body[data-theme="light"] .bg-\[\#0f172a\]\/70 { background-color:rgba(15,23,42,.45) !important; }
       body[data-theme="light"] input { color:#172554; }
       body[data-theme="light"] input::placeholder { color:#7185a3; }
+      /* Auth fields stay readable even when Android/Chrome autofills them white. */
+      #auth-view input,
+      #auth-view input:focus,
+      #auth-view input:-webkit-autofill,
+      #auth-view input:-webkit-autofill:hover,
+      #auth-view input:-webkit-autofill:focus {
+        color: #111827 !important;
+        -webkit-text-fill-color: #111827 !important;
+        caret-color: #111827 !important;
+      }
+      #auth-view input::placeholder { color:#64748b !important; opacity:1; }
+      #auth-view input:-webkit-autofill {
+        -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+        box-shadow: 0 0 0 1000px #ffffff inset !important;
+      }
       body[data-theme="light"] .icon-button { border-color:#cbdcf1; color:#31527e; background:#f8fbff; }
       body[data-theme="light"] #slip-drawer, body[data-theme="light"] #sheet { background:#fff !important; border-color:#d5e2f3 !important; }
       body[data-theme="light"] .nav-btn.text-gold { color:#2563eb !important; }
@@ -835,6 +850,6 @@
         window.addEventListener("unhandledrejection", dismiss, { once: true });
       })();
     </script>
-    <script type="module" src="./js/app.js?v=20261113-18"></script>
+    <script type="module" src="./js/app.js?v=20261115-19"></script>
   </body>
 </html>

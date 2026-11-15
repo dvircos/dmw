@@ -897,7 +897,7 @@ function renderBoard() {
   const table = document.createElement("div");
   table.className = "overflow-hidden rounded-2xl border border-slate-700/50 bg-panel shadow-sm";
   const headerRow = document.createElement("div");
-  headerRow.className = "grid grid-cols-[1.8rem_minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-slate-700/40 bg-ink/40 px-2 py-3 text-[10px] font-bold text-slate-400 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 sm:text-xs";
+  headerRow.className = "grid grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/40 bg-ink/40 px-2 py-3 text-[10px] font-bold text-slate-400 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:text-xs";
   const rankHeading = document.createElement("span");
   rankHeading.textContent = "#";
   const userHeading = document.createElement("span");
@@ -905,45 +905,40 @@ function renderBoard() {
   const balanceHeading = document.createElement("span");
   balanceHeading.className = "text-left";
   balanceHeading.textContent = "יתרה כוללת";
-  const profitHeading = document.createElement("span");
-  profitHeading.className = "text-left";
-  profitHeading.textContent = "רווח/הפסד";
-  headerRow.append(rankHeading, userHeading, balanceHeading, profitHeading);
+  headerRow.append(rankHeading,userHeading,balanceHeading);
   table.append(headerRow);
 
-  state.board.forEach((row, index) => {
-    const mine = row.id === state.user?.id;
-    const net = Number(row.net_profit || 0);
-    const totalBalance = Number(row.total_balance ?? (Number(row.balance || 0) + Number(row.open_stake || 0)));
-    const line = document.createElement("div");
-    line.className = `grid grid-cols-[1.8rem_minmax(0,1fr)_auto_auto] items-center gap-2 border-b border-slate-700/30 px-2 py-3 last:border-b-0 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto_auto] sm:gap-3 sm:px-3 ${mine ? "bg-gold/10" : ""}`;
-
-    const rank = document.createElement("span");
-    rank.className = "text-center text-xs font-bold text-slate-400 sm:text-sm";
-    rank.textContent = String(index + 1);
-
-    const username = document.createElement("span");
-    username.className = "min-w-0 truncate text-xs font-semibold text-slate-100 sm:text-sm";
-    username.textContent = row.username + (mine ? " · אתה" : "");
-
-    const balance = document.createElement("strong");
-    balance.className = "whitespace-nowrap text-left text-xs font-extrabold tabular-nums text-slate-100 sm:text-sm";
-    balance.dir = "ltr";
-    balance.textContent = "₪" + money(totalBalance);
-
-    const result = document.createElement("strong");
-    result.className = `whitespace-nowrap text-left text-xs font-extrabold tabular-nums sm:text-sm ${net > 0 ? "text-emerald-400" : net < 0 ? "text-rose-400" : "text-slate-300"}`;
-    result.dir = "ltr";
-    result.textContent = `${net > 0 ? "+" : net < 0 ? "−" : ""}₪${money(Math.abs(net))}`;
-
-    line.append(rank, username, balance, result);
+  state.board.forEach((row,index)=>{
+    const mine=row.id===state.user?.id;
+    const net=Number(row.net_profit||0);
+    const totalBalance=Number(row.total_balance??(Number(row.balance||0)+Number(row.open_stake||0)+Number(row.tournament_stake||0)));
+    const line=document.createElement("div");
+    line.className=`grid grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/30 px-2 py-3 last:border-b-0 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 ${mine?"bg-gold/10":""}`;
+    const rank=document.createElement("span");
+    rank.className="text-center text-xs font-bold text-slate-400 sm:text-sm";
+    rank.textContent=String(index+1);
+    const username=document.createElement("span");
+    username.className="min-w-0 truncate text-xs font-semibold text-slate-100 sm:text-sm";
+    username.textContent=row.username+(mine?" · אתה":"");
+    const balanceWrap=document.createElement("div");
+    balanceWrap.className="flex min-w-0 items-baseline justify-end gap-1.5 whitespace-nowrap";
+    const balance=document.createElement("strong");
+    balance.className="text-xs font-extrabold tabular-nums text-slate-100 sm:text-sm";
+    balance.dir="ltr";
+    balance.textContent="₪"+money(totalBalance);
+    const result=document.createElement("span");
+    result.className=`text-[9px] font-bold tabular-nums sm:text-[10px] ${net>0?"text-emerald-400":net<0?"text-rose-400":"text-slate-400"}`;
+    result.dir="ltr";
+    result.textContent=`(${net>0?"+":net<0?"−":""}₪${money(Math.abs(net))})`;
+    balanceWrap.append(balance,result);
+    line.append(rank,username,balanceWrap);
     table.append(line);
   });
   root.append(table);
 
-  const note = document.createElement("p");
-  note.className = "mt-2 text-[11px] leading-relaxed text-slate-400";
-  note.textContent = "היתרה הכוללת כוללת את היתרה הפנויה וגם את סכומי ההימורים שעדיין ממתינים לתוצאה. רווח/הפסד מחושב בנפרד רק מהימורים שהסתיימו.";
+  const note=document.createElement("p");
+  note.className="mt-2 text-[11px] leading-relaxed text-slate-400";
+  note.textContent="היתרה הכוללת כוללת יתרה פנויה, הימורים שטרם הסתיימו ודמי כניסה לטורנירים פעילים. הסכום בסוגריים הוא הרווח או ההפסד מהימורים שהסתיימו.";
   root.append(note);
 }
 

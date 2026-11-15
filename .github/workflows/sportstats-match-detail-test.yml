@@ -1,0 +1,48 @@
+name: SportStatsAPI one-off match detail test
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_code:
+        description: "SportStatsAPI match code"
+        required: true
+        default: "m90v1"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch one match detail response
+        env:
+          SPORTSTATS_API_KEY: ${{ secrets.SPORTSTATS_API_KEY }}
+          MATCH_CODE: ${{ inputs.match_code }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.request, urllib.error
+          code = os.environ["MATCH_CODE"]
+          url = f"https://api.sportstatsapi.com/api/v1/soccer/matches/{code}"
+          req = urllib.request.Request(url, headers={"Authorization": f"Bearer {os.environ['SPORTSTATS_API_KEY']}", "Accept": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=30) as response:
+                  body = response.read().decode("utf-8", "replace")
+                  print(f"REQUEST_URL={url}")
+                  print(f"HTTP_STATUS={response.status}")
+                  print("RAW_RESPONSE_BEGIN")
+                  try:
+                      print(json.dumps(json.loads(body), ensure_ascii=False, indent=2))
+                  except Exception:
+                      print(body)
+                  print("RAW_RESPONSE_END")
+          except urllib.error.HTTPError as error:
+              body = error.read().decode("utf-8", "replace")
+              print(f"REQUEST_URL={url}")
+              print(f"HTTP_STATUS={error.code}")
+              print("RAW_RESPONSE_BEGIN")
+              print(body)
+              print("RAW_RESPONSE_END")
+              raise SystemExit(1)
+          PY

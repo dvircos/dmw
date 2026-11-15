@@ -42,6 +42,7 @@ const state = {
   isAdmin: false,
   settledBadgeInitialized: false,
   refreshing: false,
+  unseenTournaments: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -139,7 +140,7 @@ function showTab(tab) {
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
   $("view-tournaments").classList.toggle("hidden", tab !== "tournaments");
-  if (tab === "tournaments") renderTournamentView();
+  if (tab === "tournaments") { markTournamentNotificationsSeen(); renderTournamentView(); }
   if (gamesVisible) renderGames();
   if (tab === "bets") markSettledBetsSeen();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
@@ -195,6 +196,46 @@ function renderSettledBadge() {
   const count = settledBetIds().filter((id) => !seenSet.has(id)).length;
   badge.textContent = count > 9 ? "9+" : String(count);
   badge.classList.toggle("hidden", count === 0);
+}
+
+function tournamentSeenStorageKey() {
+  return state.user ? `dmw-seen-tournaments-${state.user.id}` : null;
+}
+function readSeenTournamentIds() {
+  try { const value=JSON.parse(localStorage.getItem(tournamentSeenStorageKey())||"[]"); return new Set(Array.isArray(value)?value.map(String):[]); }
+  catch (_error) { return new Set(); }
+}
+function renderTournamentBadge() {
+  const button=document.querySelector('.nav-btn[data-tab="tournaments"]'); if(!button)return;
+  let badge=$("nav-tournaments-badge");
+  if(!badge){badge=document.createElement("span");badge.id="nav-tournaments-badge";badge.className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-ink bg-rose-500 shadow";badge.setAttribute("aria-label","יש טורניר חדש");button.classList.add("relative");button.append(badge);}
+  badge.classList.toggle("hidden",state.unseenTournaments.length===0);
+}
+function closeTournamentAnnouncement(){ $("new-tournament-announcement")?.remove(); }
+function showTournamentAnnouncement() {
+  if(!state.unseenTournaments.length||$("new-tournament-announcement"))return;
+  const overlay=document.createElement("div");overlay.id="new-tournament-announcement";overlay.className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-5";
+  const card=document.createElement("section");card.className="w-full max-w-sm rounded-2xl border-2 border-gold bg-panel p-5 text-center shadow-2xl";
+  const icon=document.createElement("div");icon.className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gold/15 text-3xl";icon.textContent="🏆";
+  const title=document.createElement("h2");title.className="text-xl font-extrabold text-gold";title.textContent=state.unseenTournaments.length===1?"טורניר חדש פורסם!":"טורנירים חדשים פורסמו!";
+  const description=document.createElement("p");description.className="mt-2 text-sm leading-relaxed text-slate-200";description.textContent=state.unseenTournaments.map(t=>t.name).join(" · ");
+  const view=document.createElement("button");view.type="button";view.className="mt-5 w-full rounded-xl bg-gold px-4 py-3 font-extrabold text-ink";view.textContent="לצפייה בטורניר";view.addEventListener("click",()=>{closeTournamentAnnouncement();showTab("tournaments");});
+  const later=document.createElement("button");later.type="button";later.className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-slate-300";later.textContent="אחר כך";later.addEventListener("click",closeTournamentAnnouncement);
+  card.append(icon,title,description,view,later);overlay.append(card);overlay.addEventListener("click",event=>{if(event.target===overlay)closeTournamentAnnouncement();});document.body.append(overlay);
+}
+async function refreshTournamentNotifications() {
+  if(!state.user)return;
+  const {data,error}=await supabase.rpc("tournament_list");
+  if(error){console.warn("Tournament notifications unavailable",error);return;}
+  const seen=readSeenTournamentIds();
+  state.unseenTournaments=(Array.isArray(data)?data:[]).filter(t=>t.status==="open"&&!seen.has(String(t.id)));
+  renderTournamentBadge();if(state.unseenTournaments.length)showTournamentAnnouncement();
+}
+function markTournamentNotificationsSeen() {
+  const key=tournamentSeenStorageKey();if(!key)return;
+  const seen=readSeenTournamentIds();state.unseenTournaments.forEach(t=>seen.add(String(t.id)));
+  try{localStorage.setItem(key,JSON.stringify([...seen]));}catch(_error){}
+  state.unseenTournaments=[];renderTournamentBadge();closeTournamentAnnouncement();
 }
 
 function markSettledBetsSeen() {
@@ -2027,6 +2068,7 @@ async function enterApp(session) {
     else toast("הצטרפת לקבוצה בהצלחה");
   }
   await refreshAll();
+  await refreshTournamentNotifications();
   subscribe();
   if (!state.clock) state.clock = setInterval(() => { if (state.tab === "games") renderGames(); }, 30000);
 }
@@ -2036,6 +2078,9 @@ function leaveApp() {
   if (state.clock) clearInterval(state.clock);
   state.clock = null;
   state.channel = null;
+  closeTournamentAnnouncement();
+  state.unseenTournaments = [];
+  renderTournamentBadge();
   state.user = null;
   state.settledBadgeInitialized = false;
   state.archiveGames = [];

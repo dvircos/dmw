@@ -372,6 +372,8 @@ function renderGames() {
     const inlineOddsAvailable = !isArchive && game.status === "upcoming" &&
       [game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01);
     if (inlineOddsAvailable) {
+      const inlineCanBet = game.status === "upcoming" &&
+        new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
       const inlineOdds = document.createElement("div");
       inlineOdds.className = "game-inline-odds";
       [["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]].forEach(([selection, price]) => {
@@ -380,7 +382,7 @@ function renderGames() {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "game-inline-odds-option" + (picked ? " is-picked" : "");
-        button.disabled = !canPlaceBet || !Number.isFinite(numericPrice) || numericPrice < 1.01;
+        button.disabled = !inlineCanBet || !Number.isFinite(numericPrice) || numericPrice < 1.01;
         button.setAttribute("aria-pressed", picked ? "true" : "false");
         button.setAttribute("aria-label", selection + " יחס " + (numericPrice >= 1.01 ? numericPrice.toFixed(2) : "לא זמין"));
         const value = document.createElement("strong");

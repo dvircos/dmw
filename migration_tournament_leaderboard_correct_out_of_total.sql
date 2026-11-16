@@ -23,7 +23,9 @@ begin
       )::integer as correct_predictions,
       (select count(*)::integer
        from public.tournament_games tg
-       where tg.tournament_id=p_tournament_id) as total_games
+       join public.games finished_game on finished_game.id=tg.game_id
+       where tg.tournament_id=p_tournament_id
+         and finished_game.status='finished') as total_games
     from public.tournament_participants p
     join public.profiles pr on pr.id=p.user_id
     left join public.tournament_predictions tp

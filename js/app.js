@@ -368,6 +368,38 @@ function renderGames() {
     body.append(matchToggle);
     card.append(body);
 
+    // Compact 1/X/2 odds stay visible on the match card without opening its markets.
+    const inlineOddsAvailable = !isArchive && game.status === "upcoming" &&
+      [game.home_odds, game.draw_odds, game.away_odds].some((value) => Number(value) >= 1.01);
+    if (inlineOddsAvailable) {
+      const inlineOdds = document.createElement("div");
+      inlineOdds.className = "game-inline-odds";
+      [["1", game.home_odds], ["X", game.draw_odds], ["2", game.away_odds]].forEach(([selection, price]) => {
+        const numericPrice = Number(price);
+        const picked = state.slip.some((leg) => leg.gameId === gameId && !leg.marketId && leg.selection === selection);
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "game-inline-odds-option" + (picked ? " is-picked" : "");
+        button.disabled = !canPlaceBet || !Number.isFinite(numericPrice) || numericPrice < 1.01;
+        button.setAttribute("aria-pressed", picked ? "true" : "false");
+        button.setAttribute("aria-label", selection + " יחס " + (numericPrice >= 1.01 ? numericPrice.toFixed(2) : "לא זמין"));
+        const value = document.createElement("strong");
+        value.className = "game-inline-odds-value";
+        value.dir = "ltr";
+        value.textContent = numericPrice >= 1.01 ? numericPrice.toFixed(2) : "—";
+        const label = document.createElement("span");
+        label.className = "game-inline-odds-label";
+        label.textContent = selection;
+        button.append(value, label);
+        if (!button.disabled) button.addEventListener("click", (event) => {
+          event.stopPropagation();
+          toggleSlip(game, selection, numericPrice);
+        });
+        inlineOdds.append(button);
+      });
+      card.append(inlineOdds);
+    }
+
     const enabledMarkets = isArchive ? [] : state.gameMarkets.filter((market) =>
       Number(market.game_id) === gameId &&
       market.active !== false &&

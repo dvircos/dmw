@@ -410,51 +410,10 @@ function renderGames() {
     const canPlaceBet = !isArchive &&
       game.status === "upcoming" &&
       new Date(game.match_time).getTime() > Date.now() + 5 * 60 * 1000;
-    const hasMainOdds = !isArchive && [game.home_odds, game.draw_odds, game.away_odds]
-      .some((value) => Number(value) >= 1.01);
 
     if (expanded) {
       const panel = document.createElement("div");
       panel.className = "game-expanded-panel";
-
-      const mainOdds = document.createElement("section");
-      mainOdds.className = "game-main-odds";
-      const title = document.createElement("h3");
-      title.className = "game-main-odds-title";
-      title.textContent = "תוצאת המשחק";
-      mainOdds.append(title);
-
-      if (hasMainOdds) {
-        const grid = document.createElement("div");
-        grid.className = "game-main-odds-grid";
-        [["1", game.home_odds, "1 · בית"], ["X", game.draw_odds, "X · תיקו"], ["2", game.away_odds, "2 · חוץ"]]
-          .forEach(([selection, price, label]) => {
-            const numericPrice = Number(price);
-            const picked = state.slip.some((leg) => leg.gameId === gameId && !leg.marketId && leg.selection === selection);
-            const button = document.createElement("button");
-            button.type = "button";
-            button.disabled = !canPlaceBet || !Number.isFinite(numericPrice) || numericPrice < 1.01;
-            button.setAttribute("aria-pressed", picked ? "true" : "false");
-            button.className = "game-odds-button" + (picked ? " is-picked" : "");
-            const outcomeLabel = document.createElement("span");
-            outcomeLabel.className = "game-odds-label";
-            outcomeLabel.textContent = label;
-            const value = document.createElement("strong");
-            value.className = "game-odds-value";
-            value.dir = "ltr";
-            value.textContent = numericPrice >= 1.01 ? numericPrice.toFixed(2) : "—";
-            button.append(outcomeLabel, value);
-            if (!button.disabled) button.addEventListener("click", () => toggleSlip(game, selection, numericPrice));
-            grid.append(button);
-          });
-        mainOdds.append(grid);
-      } else {
-        const unavailable = document.createElement("p");
-        unavailable.className = "game-no-odds";
-        unavailable.textContent = "אין כרגע יחסים זמינים לתוצאת המשחק";
-        mainOdds.append(unavailable);
-      }
-      panel.append(mainOdds);
 
       enabledMarkets.forEach((market) => {
         const marketKey = gameId + ":" + market.id;

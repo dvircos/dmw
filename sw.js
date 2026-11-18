@@ -6,7 +6,7 @@ const APP_SHELL = [
   "./js/config.js",
   "./js/toast.js",
   "./js/format.js",
-  "./js/app.js?v=20261118-01",
+  "./js/app.js?v=20261118-02",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
 ];

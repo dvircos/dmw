@@ -43,6 +43,7 @@ const state = {
   settledBadgeInitialized: false,
   refreshing: false,
   unseenTournaments: [],
+  unseenTournamentResults: [],
 };
 
 const $ = (id) => document.getElementById(id);
@@ -223,13 +224,84 @@ function showTournamentAnnouncement() {
   const later=document.createElement("button");later.type="button";later.className="mt-2 w-full rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-slate-300";later.textContent="אחר כך";later.addEventListener("click",closeTournamentAnnouncement);
   card.append(icon,title,description,view,later);overlay.append(card);overlay.addEventListener("click",event=>{if(event.target===overlay)closeTournamentAnnouncement();});document.body.append(overlay);
 }
+function closeTournamentResultAnnouncement(){ $("tournament-result-announcement")?.remove(); }
+function showTournamentResultAnnouncement() {
+  if(!state.unseenTournamentResults.length||$("tournament-result-announcement"))return;
+  const tournament=state.unseenTournamentResults[0];
+  const overlay=document.createElement("div");
+  overlay.id="tournament-result-announcement";
+  overlay.className="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4";
+  const card=document.createElement("section");
+  card.className="w-full max-w-md rounded-3xl border-2 border-gold bg-panel p-5 text-center shadow-2xl";
+  const trophy=document.createElement("div");
+  trophy.className="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-gold/15 text-4xl";
+  trophy.textContent="🏆";
+  const title=document.createElement("h2");
+  title.className="text-2xl font-extrabold text-gold";
+  title.textContent="הטורניר הסתיים!";
+  const name=document.createElement("p");
+  name.className="mt-1 mb-4 text-sm font-bold text-slate-200";
+  name.textContent=tournament.name;
+  const heading=document.createElement("h3");
+  heading.className="mb-3 text-base font-extrabold";
+  heading.textContent="הפודיום";
+  const podium=document.createElement("div");
+  podium.className="grid grid-cols-3 items-end gap-2";
+  const rows=Array.isArray(tournament.leaderboard)?tournament.leaderboard:[];
+  const scores=[...new Set(rows.map(x=>Number(x.correct_predictions)||0))].sort((a,b)=>b-a);
+  const groups=scores.slice(0,3).map((score,index)=>({
+    rank:index+1,
+    players:rows.filter(x=>(Number(x.correct_predictions)||0)===score),
+    score
+  }));
+  const slots=[2,1,3];
+  const medals={1:"🥇",2:"🥈",3:"🥉"};
+  const heights={1:"min-h-36",2:"min-h-28",3:"min-h-24"};
+  slots.forEach(rank=>{
+    const group=groups.find(x=>x.rank===rank);
+    if(!group){const spacer=document.createElement("div");podium.append(spacer);return;}
+    const item=document.createElement("div");
+    item.className="flex flex-col items-center justify-end rounded-2xl border border-gold/30 bg-slate-800/70 px-2 py-3 "+heights[rank];
+    const medal=document.createElement("div");medal.className="mb-1 text-3xl";medal.textContent=medals[rank];
+    const place=document.createElement("div");place.className="mb-2 text-xs font-extrabold text-gold";place.textContent="מקום "+rank;
+    const players=document.createElement("div");players.className="text-sm font-extrabold leading-snug text-white";
+    players.textContent=group.players.map(x=>x.username).join(" · ");
+    const score=document.createElement("div");score.className="mt-2 text-xs text-slate-300";
+    score.textContent=group.score+" מתוך "+(Number(group.players[0]?.total_games)||0);
+    item.append(medal,place,players,score);
+    const paid=group.players.reduce((sum,x)=>sum+(Number(x.prize_paid)||0),0);
+    if(paid>0){const prize=document.createElement("div");prize.className="mt-1 text-xs font-bold text-emerald-300";prize.textContent="פרס: ₪"+money(paid);item.append(prize);}
+    podium.append(item);
+  });
+  const close=document.createElement("button");
+  close.type="button";
+  close.className="mt-5 w-full rounded-xl bg-gold px-4 py-3 font-extrabold text-ink";
+  close.textContent="סגירה";
+  close.addEventListener("click",async()=>{
+    close.disabled=true;
+    const result=await supabase.rpc("tournament_mark_result_seen",{p_tournament_id:tournament.id});
+    if(result.error){toast(cleanError(result.error),"error");close.disabled=false;return;}
+    state.unseenTournamentResults.shift();
+    closeTournamentResultAnnouncement();
+    if(state.unseenTournamentResults.length)showTournamentResultAnnouncement();
+    else if(state.unseenTournaments.length)showTournamentAnnouncement();
+  });
+  card.append(trophy,title,name,heading,podium,close);
+  overlay.append(card);
+  document.body.append(overlay);
+}
 async function refreshTournamentNotifications() {
   if(!state.user)return;
+  const results=await supabase.rpc("tournament_unseen_results");
+  if(results.error){console.warn("Tournament result notifications unavailable",results.error);}
+  else state.unseenTournamentResults=Array.isArray(results.data)?results.data:[];
   const {data,error}=await supabase.rpc("tournament_list");
-  if(error){console.warn("Tournament notifications unavailable",error);return;}
+  if(error){console.warn("Tournament notifications unavailable",error);if(state.unseenTournamentResults.length)showTournamentResultAnnouncement();return;}
   const seen=readSeenTournamentIds();
   state.unseenTournaments=(Array.isArray(data)?data:[]).filter(t=>t.status==="open"&&!seen.has(String(t.id)));
-  renderTournamentBadge();if(state.unseenTournaments.length)showTournamentAnnouncement();
+  renderTournamentBadge();
+  if(state.unseenTournamentResults.length)showTournamentResultAnnouncement();
+  else if(state.unseenTournaments.length)showTournamentAnnouncement();
 }
 function markTournamentNotificationsSeen() {
   const key=tournamentSeenStorageKey();if(!key)return;
@@ -2067,6 +2139,8 @@ function leaveApp() {
   state.clock = null;
   state.channel = null;
   closeTournamentAnnouncement();
+  closeTournamentResultAnnouncement();
+  state.unseenTournamentResults = [];
   state.unseenTournaments = [];
   renderTournamentBadge();
   state.user = null;

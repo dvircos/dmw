@@ -1837,14 +1837,47 @@ async function renderTournamentView() {
   const h=document.createElement("h2"); h.className="mb-3 text-xl font-extrabold text-gold"; h.textContent="טורנירים"; root.append(h);
   const r=await supabase.rpc("tournament_list"); if(r.error){empty(root,cleanError(r.error));return;}
   const rows=Array.isArray(r.data)?r.data:[];
-  if(!rows.length){empty(root,"אין כרגע טורנירים פתוחים");return;}
-  rows.forEach(t=>{
-    const c=document.createElement("article");c.className="mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
-    const n=document.createElement("strong");n.className="block font-extrabold";n.textContent=t.name;
-    const m=document.createElement("p");m.className="mt-2 text-xs text-mist";m.textContent=t.game_count+" משחקים · "+t.participant_count+" משתתפים · כניסה ₪"+money(t.entry_fee)+" · קופה ₪"+money(t.prize_pool);
-    const b=document.createElement("button");b.className="mt-3 w-full rounded-xl bg-gold p-3 font-bold text-ink";b.textContent=t.joined?"פתיחת הטורניר":t.status==="open"?"פרטים והצטרפות":"צפייה";
-    b.addEventListener("click",()=>{state.tournamentSelectedId=t.id;renderTournamentView();});c.append(n,m,b);root.append(c);
-  });
+  const active=rows.filter(t=>["open","locked"].includes(t.status));
+  const archived=rows.filter(t=>["completed","cancelled"].includes(t.status));
+  const renderSection=(title,items,emptyText)=>{
+    const section=document.createElement("section");
+    section.className="mb-5";
+    const heading=document.createElement("h3");
+    heading.className="mb-3 text-base font-extrabold text-gold";
+    heading.textContent=title;
+    section.append(heading);
+    if(!items.length){
+      const note=document.createElement("p");
+      note.className="rounded-xl border border-dashed border-slate-700/50 px-3 py-4 text-center text-xs text-mist";
+      note.textContent=emptyText;
+      section.append(note);
+    }
+    items.forEach(t=>{
+      const c=document.createElement("article");
+      c.className="mb-3 rounded-2xl border border-slate-700/50 bg-panel p-4";
+      const top=document.createElement("div");
+      top.className="flex items-center justify-between gap-2";
+      const n=document.createElement("strong");
+      n.className="block font-extrabold";
+      n.textContent=t.name;
+      const status=document.createElement("span");
+      status.className="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold "+(t.status==="completed"?"bg-emerald-900/40 text-emerald-300":t.status==="cancelled"?"bg-slate-700 text-slate-300":"bg-gold/15 text-gold");
+      status.textContent=t.status==="completed"?"הסתיים":t.status==="cancelled"?"בוטל":t.status==="locked"?"ההרשמה נסגרה":"פתוח";
+      top.append(n,status);
+      const m=document.createElement("p");
+      m.className="mt-2 text-xs text-mist";
+      m.textContent=t.game_count+" משחקים · "+t.participant_count+" משתתפים · כניסה ₪"+money(t.entry_fee)+" · קופה ₪"+money(t.prize_pool);
+      const b=document.createElement("button");
+      b.className="mt-3 w-full rounded-xl "+(t.status==="completed"||t.status==="cancelled"?"border border-slate-600 bg-ink p-3 font-bold text-slate-100":"bg-gold p-3 font-bold text-ink");
+      b.textContent=t.status==="open"&&!t.joined?"פרטים והצטרפות":t.status==="completed"?"צפייה בתוצאות":"צפייה בטורניר";
+      b.addEventListener("click",()=>{state.tournamentSelectedId=t.id;renderTournamentView();});
+      c.append(top,m,b);
+      section.append(c);
+    });
+    root.append(section);
+  };
+  renderSection("טורנירים פעילים",active,"אין כרגע טורנירים פעילים");
+  renderSection("טורנירים סגורים · ארכיון",archived,"עדיין אין טורנירים בארכיון");
 }
 async function renderTournamentDetail(root,id){
   const r=await supabase.rpc("tournament_detail",{p_tournament_id:id});if(r.error){state.tournamentSelectedId=null;empty(root,cleanError(r.error));return;}

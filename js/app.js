@@ -27,6 +27,9 @@ const state = {
   gameView: "active",
   bets: [],
   betsFilter: "pending",
+  statsPeriod: "all",
+  statsLeague: "all",
+  statsRequest: 0,
   board: [],
   groups: [],
   activeGroupId: "00000000-0000-0000-0000-000000000001",
@@ -138,12 +141,14 @@ function showTab(tab) {
   $("games-tools").classList.toggle("hidden", !gamesVisible);
   $("view-games").classList.toggle("hidden", !gamesVisible);
   $("view-bets").classList.toggle("hidden", tab !== "bets");
+  $("view-stats").classList.toggle("hidden", tab !== "stats");
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
   $("view-tournaments").classList.toggle("hidden", tab !== "tournaments");
   if (tab === "tournaments") { markTournamentNotificationsSeen(); renderTournamentView(); }
   if (gamesVisible) renderGames();
   if (tab === "bets") markSettledBetsSeen();
+  if (tab === "stats") renderStats();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
   document.querySelectorAll(".nav-btn").forEach((button) => {
     const active = button.dataset.tab === tab;
@@ -2076,6 +2081,42 @@ async function refreshAdmin() {
   }
 }
 
+async function renderStats() {
+  const root=$("view-stats"), request=++state.statsRequest; root.replaceChildren();
+  const loading=document.createElement("p"); loading.className="rounded-2xl bg-panel p-8 text-center text-sm text-mist"; loading.textContent="טוען סטטיסטיקה…"; root.append(loading);
+  try {
+    let bets=[], offset=0, size=500;
+    while(true){const r=await supabase.from("bets").select("id,created_at,bet_amount,potential_payout,status,game_id,market_key,market_label,games(sportstats_league_name),bet_items(game_id,status,market_key,market_label,games(sportstats_league_name))").eq("user_id",state.user.id).order("id",{ascending:true}).range(offset,offset+size-1);if(r.error)throw r.error;const page=r.data||[];bets.push(...page);offset+=size;if(page.length<size)break;}
+    const tr=await supabase.rpc("tournament_list"), ts=tr.error?[]:(tr.data||[]).filter(t=>t.joined), done=ts.filter(t=>t.status==="completed");
+    const lbs=await Promise.all(done.map(t=>supabase.rpc("tournament_leaderboard",{p_tournament_id:t.id})));let tournamentWins=0;
+    lbs.forEach(r=>{if(r.error||!Array.isArray(r.data)||!r.data.length)return;const top=Math.max(...r.data.map(x=>Number(x.correct_predictions)||0)),mine=r.data.find(x=>x.user_id===state.user.id);if(mine&&Number(mine.correct_predictions)===top&&top>0)tournamentWins++;});
+    if(request!==state.statsRequest||state.tab!=="stats")return;
+    const leagues=[...new Set(bets.filter(b=>b.status!=="cancelled").flatMap(b=>[...(b.bet_items||[]).map(x=>x.games),b.games].map(g=>g?.sportstats_league_name).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,"he"));
+    const head=document.createElement("h2");head.className="mb-3 text-xl font-extrabold text-gold";head.textContent="הסטטיסטיקה שלי";root.replaceChildren(head);
+    const filters=document.createElement("div");filters.className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-panel p-2";
+    [["all","כל הזמן"],["30","30 יום"],["90","90 יום"]].forEach(([k,l])=>{const b=document.createElement("button");b.className="rounded-lg p-2 text-xs font-bold "+(state.statsPeriod===k?"bg-gold text-ink":"text-slate-300");b.textContent=l;b.onclick=()=>{state.statsPeriod=k;renderStats();};filters.append(b);});root.append(filters);
+    const leagueSelect=document.createElement("select");leagueSelect.className="mb-4 w-full rounded-xl border border-slate-600 bg-panel px-3 py-3 text-sm";
+    [["all","כל הליגות"],...leagues.map(x=>[x,x])].forEach(([v,l])=>{const o=document.createElement("option");o.value=v;o.textContent=l;leagueSelect.append(o);});
+    leagueSelect.value=leagues.includes(state.statsLeague)||state.statsLeague==="all"?state.statsLeague:"all";state.statsLeague=leagueSelect.value;
+    leagueSelect.onchange=()=>{state.statsLeague=leagueSelect.value;renderStats();};root.append(leagueSelect);
+    const cutoff=state.statsPeriod==="30"?Date.now()-2592000000:state.statsPeriod==="90"?Date.now()-7776000000:0;
+    const valid=bets.filter(b=>b.status!=="cancelled"&&(!cutoff||new Date(b.created_at||0).getTime()>=cutoff));
+    const picks=[];valid.forEach(b=>(b.bet_items?.length?b.bet_items:[b]).forEach(x=>picks.push({betId:b.id,status:x.status||b.status,league:(x.games||b.games||{}).sportstats_league_name||"ליגה לא ידועה",market:x.market_label||b.market_label||x.market_key||b.market_key||"תוצאת משחק (1/X/2)"})));
+    const visiblePicks=picks.filter(p=>state.statsLeague==="all"||p.league===state.statsLeague);
+    const decisive=visiblePicks.filter(p=>p.status==="won"||p.status==="lost"), hits=decisive.filter(p=>p.status==="won").length, misses=decisive.length-hits, voids=visiblePicks.filter(p=>p.status==="void").length;
+    const filteredTickets=new Set(visiblePicks.map(p=>p.betId)), statsBets=state.statsLeague==="all"?valid:valid.filter(b=>filteredTickets.has(b.id));
+    const settled=statsBets.filter(b=>["won","lost","void"].includes(b.status)), won=settled.filter(b=>b.status==="won").length, lost=settled.filter(b=>b.status==="lost").length;
+    const stake=settled.reduce((n,b)=>n+Number(b.bet_amount||0),0), net=settled.reduce((n,b)=>n+(b.status==="won"?Number(b.potential_payout||0)-Number(b.bet_amount||0):b.status==="lost"?-Number(b.bet_amount||0):0),0), accuracy=decisive.length?hits/decisive.length*100:0;
+    const card=(v,l,t)=>{const c=document.createElement("div");c.className="rounded-2xl border border-slate-700/60 bg-panel p-3";const n=document.createElement("strong");n.className="block text-xl font-extrabold "+(t||"");n.textContent=v;const x=document.createElement("span");x.className="mt-1 block text-[11px] text-mist";x.textContent=l;c.append(n,x);return c;};
+    const grid=document.createElement("div");grid.className="mb-4 grid grid-cols-2 gap-2";grid.append(card(String(state.statsLeague==="all"?valid.length:filteredTickets.size),"סך ההימורים"),card(accuracy.toFixed(1)+"%","אחוז הצלחה","text-emerald-400"),card(String(hits),"פגיעות","text-emerald-400"),card(String(misses),"טעויות","text-rose-400"),card(String(visiblePicks.filter(p=>p.status==="pending").length),"בחירות פתוחות","text-gold"),card(String(new Set(visiblePicks.map(p=>p.league)).size),"ליגות פעילות"));root.append(grid);
+    const fin=document.createElement("section");fin.className="mb-4 rounded-2xl border border-slate-700/60 bg-[#17243a] p-4";const fh=document.createElement("h3");fh.className="mb-3 font-extrabold text-gold";fh.textContent="הביצועים הכספיים";const fg=document.createElement("div");fg.className="grid grid-cols-2 gap-2";fg.append(card("₪"+money(stake),"סך ההשקעות"),card((net>0?"+":net<0?"−":"")+"₪"+money(Math.abs(net)),net>0?"רווח נקי":net<0?"הפסד נקי":"מאזן",net>0?"text-emerald-400":net<0?"text-rose-400":""),card(String(won),"טפסים שזכו","text-emerald-400"),card(String(lost),"טפסים שהפסידו","text-rose-400"));fin.append(fh,fg);root.append(fin);
+    const addList=(titleText,map)=>{const sec=document.createElement("section");sec.className="mb-4 rounded-2xl border border-slate-700/60 bg-[#17243a] p-4";const h=document.createElement("h3");h.className="mb-3 font-extrabold text-gold";h.textContent=titleText;sec.append(h);[...map.entries()].sort((a,b)=>(b[1].w+b[1].l)-(a[1].w+a[1].l)).forEach(([name,v])=>{const total=v.w+v.l,pct=total?v.w/total*100:0,row=document.createElement("p");row.className="flex justify-between gap-2 border-b border-slate-700/50 py-2 text-xs";const a=document.createElement("span");a.textContent=name;const z=document.createElement("strong");z.className="text-emerald-400";z.textContent=pct.toFixed(1)+"% · "+v.w+"/"+total;row.append(a,z);sec.append(row);});if(!map.size){const p=document.createElement("p");p.className="text-xs text-mist";p.textContent="אין עדיין נתונים.";sec.append(p);}root.append(sec);};
+    const lm=new Map(),mm=new Map();visiblePicks.forEach(p=>{const l=lm.get(p.league)||{w:0,l:0};if(p.status==="won")l.w++;if(p.status==="lost")l.l++;lm.set(p.league,l);const m=mm.get(p.market)||{w:0,l:0};if(p.status==="won")m.w++;if(p.status==="lost")m.l++;mm.set(p.market,m);});addList("ביצועים לפי ליגה",lm);addList("ביצועים לפי סוג הימור",mm);
+    const tour=document.createElement("section");tour.className="mb-4 rounded-2xl border border-slate-700/60 bg-[#17243a] p-4";const th=document.createElement("h3");th.className="mb-3 font-extrabold text-gold";th.textContent="הטורנירים שלי";const tg=document.createElement("div");tg.className="grid grid-cols-2 gap-2";tg.append(card(String(ts.length),"טורנירים שהשתתפת בהם"),card(String(tournamentWins),"זכיות בטורנירים","text-gold"));tour.append(th,tg);root.append(tour);
+    const note=document.createElement("p");note.className="mb-4 text-center text-[10px] text-slate-500";note.textContent="אחוז ההצלחה מחושב מתוך ניחושים שהוכרעו בלבד. הימורים פתוחים, מבוטלים והחזרים אינם נחשבים לפגיעה או לטעות.";root.append(note);
+  }catch(e){if(request===state.statsRequest)empty(root,"לא הצלחנו לטעון את הסטטיסטיקה: "+cleanError(e));}
+}
+
 async function refreshProfile() {
   const { data, error } = await supabase.from("profiles").select("username, balance, is_deleted").eq("id", state.user.id).single();
   if (error) {
@@ -2149,8 +2190,8 @@ async function enterApp(session) {
   state.isAdmin = !adminCheck.error && adminCheck.data === true;
   $("admin-nav").classList.toggle("hidden", !state.isAdmin);
   $("admin-nav").classList.toggle("flex", state.isAdmin);
-  $("nav-items").classList.toggle("grid-cols-6", state.isAdmin);
-  $("nav-items").classList.toggle("grid-cols-5", !state.isAdmin);
+  $("nav-items").classList.toggle("grid-cols-7", state.isAdmin);
+  $("nav-items").classList.toggle("grid-cols-6", !state.isAdmin);
   const inviteUrl = new URL(location.href);
   const inviteCode = inviteUrl.searchParams.get("join");
   if (inviteCode) {

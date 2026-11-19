@@ -1400,19 +1400,22 @@ async function renderAdminHome(root) {
   intro.textContent = "בחר אזור לניהול ולבקרה";
   root.append(heading, intro);
 
-  const [users, runsResult, games] = await Promise.all([
+  const [users, runsResult, gamesResult] = await Promise.all([
     supabase.rpc("admin_list_users"),
     supabase.rpc("admin_recent_api_sync_runs", { p_limit: 100 }),
-    supabase.from("games").select("id", { count: "exact", head: true })
+    supabase.from("games").select("id,home_odds,draw_odds,away_odds").in("status", ["upcoming", "live"]).limit(1000)
   ]);
   const userRows = Array.isArray(users.data) ? users.data : [];
   const runRows = Array.isArray(runsResult.data) ? runsResult.data : [];
+  const gameRows = Array.isArray(gamesResult.data) ? gamesResult.data : [];
   const failed = runRows.filter((row) => row.status === "failed").length;
+  const withOdds = gameRows.filter((g) => [g.home_odds,g.draw_odds,g.away_odds].every(v => v !== null && v !== undefined && Number.isFinite(Number(v)) && Number(v) > 0)).length;
   const stats = document.createElement("div");
-  stats.className = "mb-5 grid grid-cols-3 gap-2";
+  stats.className = "mb-5 grid grid-cols-2 gap-2 sm:grid-cols-3";
   [
     [userRows.length, "משתמשים"],
-    [games.count ?? "—", "משחקים"],
+    [gameRows.length, "משחקים כרגע"],
+    [withOdds + "/" + gameRows.length, "משחקים עם יחסים"],
     [failed, "ריצות שנכשלו"]
   ].forEach(([value, label]) => {
     const tile = document.createElement("div");
@@ -1438,9 +1441,9 @@ async function renderAdminHome(root) {
 
 async function renderAdminControl(root) {
   adminHeader(root, "בקרה");
-  const [runsResult, games, users] = await Promise.all([
+  const [runsResult, gamesResult, users] = await Promise.all([
     supabase.rpc("admin_recent_api_sync_runs", { p_limit: 100 }),
-    supabase.from("games").select("id", { count: "exact", head: true }),
+    supabase.from("games").select("id,home_odds,draw_odds,away_odds").in("status", ["upcoming", "live"]).limit(1000),
     supabase.rpc("admin_list_users")
   ]);
   if (runsResult.error) {
@@ -1449,14 +1452,23 @@ async function renderAdminControl(root) {
     warning.textContent = "לא ניתן לטעון דוחות ריצות: " + cleanError(runsResult.error);
     root.append(warning);
   }
+  if (gamesResult.error) {
+    const warning = document.createElement("p");
+    warning.className = "rounded-xl bg-rose-500/10 p-3 text-sm text-rose-300";
+    warning.textContent = "לא ניתן לטעון נתוני משחקים ויחסים: " + cleanError(gamesResult.error);
+    root.append(warning);
+  }
   const rows = Array.isArray(runsResult.data) ? runsResult.data : [];
   const failed = rows.filter((row) => row.status === "failed");
   const successful = rows.filter((row) => row.status === "success");
+  const gameRows = Array.isArray(gamesResult.data) ? gamesResult.data : [];
+  const withOdds = gameRows.filter((g) => [g.home_odds,g.draw_odds,g.away_odds].every(v => v !== null && v !== undefined && Number.isFinite(Number(v)) && Number(v) > 0)).length;
   const tiles = document.createElement("div");
   tiles.className = "grid grid-cols-2 gap-3";
   [
     [String(Array.isArray(users.data) ? users.data.length : "—"), "משתמשים"],
-    [String(games.count ?? "—"), "משחקים במערכת"],
+    [String(gameRows.length), "משחקים כרגע"],
+    [withOdds + "/" + gameRows.length, "משחקים שנקלטו להם יחסי 1/X/2"],
     [String(successful.length), "ריצות שהצליחו · 100 אחרונות"],
     [String(failed.length), "ריצות שנכשלו · 100 אחרונות"]
   ].forEach(([value, label]) => {

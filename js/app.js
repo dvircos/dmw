@@ -967,15 +967,18 @@ function renderBoard() {
   const table = document.createElement("div");
   table.className = "overflow-hidden rounded-2xl border border-slate-700/50 bg-panel shadow-sm";
   const headerRow = document.createElement("div");
-  headerRow.className = "grid grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/40 bg-ink/40 px-2 py-3 text-[10px] font-bold text-slate-400 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 sm:text-xs";
+  headerRow.className = "grid grid-cols-[1.5rem_minmax(0,1fr)_4.2rem_auto] items-center gap-2 border-b border-slate-700/40 bg-ink/40 px-2 py-3 text-[10px] font-bold text-slate-400 sm:grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] sm:gap-3 sm:px-3 sm:text-xs";
   const rankHeading = document.createElement("span");
   rankHeading.textContent = "#";
   const userHeading = document.createElement("span");
   userHeading.textContent = "משתמש";
+  const accuracyHeading = document.createElement("span");
+  accuracyHeading.className = "text-center";
+  accuracyHeading.textContent = "הצלחה";
   const balanceHeading = document.createElement("span");
   balanceHeading.className = "text-left";
   balanceHeading.textContent = "יתרה כוללת";
-  headerRow.append(rankHeading,userHeading,balanceHeading);
+  headerRow.append(rankHeading,userHeading,accuracyHeading,balanceHeading);
   table.append(headerRow);
 
   state.board.forEach((row,index)=>{
@@ -983,7 +986,7 @@ function renderBoard() {
     const net=Number(row.net_profit||0);
     const totalBalance=Number(row.total_balance??(Number(row.balance||0)+Number(row.open_stake||0)+Number(row.tournament_stake||0)));
     const line=document.createElement("div");
-    line.className=`grid grid-cols-[1.8rem_minmax(0,1fr)_auto] items-center gap-2 border-b border-slate-700/30 px-2 py-3 last:border-b-0 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:gap-3 sm:px-3 ${mine?"bg-gold/10":""}`;
+    line.className=`grid grid-cols-[1.5rem_minmax(0,1fr)_4.2rem_auto] items-center gap-2 border-b border-slate-700/30 px-2 py-3 last:border-b-0 sm:grid-cols-[2.5rem_minmax(0,1fr)_5.5rem_auto] sm:gap-3 sm:px-3 ${mine?"bg-gold/10":""}`;
     const rank=document.createElement("span");
     rank.className="text-center text-xs font-bold text-slate-400 sm:text-sm";
     rank.textContent=String(index+1);
@@ -1001,7 +1004,18 @@ function renderBoard() {
     result.dir="ltr";
     result.textContent=`(${net>0?"+":net<0?"−":""}₪${money(Math.abs(net))})`;
     balanceWrap.append(balance,result);
-    line.append(rank,username,balanceWrap);
+    const settled=Number(row.settled_bets||0);
+    const correct=Number(row.correct_bets||0);
+    const accuracyWrap=document.createElement("div");
+    accuracyWrap.className="flex flex-col items-center justify-center leading-tight";
+    const accuracy=document.createElement("strong");
+    accuracy.className="text-xs font-extrabold tabular-nums "+(settled?(correct/settled>=0.5?"text-emerald-400":"text-rose-300"):"text-slate-500");
+    accuracy.textContent=settled?((correct/settled)*100).toFixed(1)+"%":"—";
+    const accuracyDetail=document.createElement("span");
+    accuracyDetail.className="mt-1 text-[9px] font-semibold tabular-nums text-slate-400 sm:text-[10px]";
+    accuracyDetail.textContent=correct+"/"+settled;
+    accuracyWrap.append(accuracy,accuracyDetail);
+    line.append(rank,username,accuracyWrap,balanceWrap);
     table.append(line);
   });
   root.append(table);

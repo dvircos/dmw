@@ -2099,7 +2099,7 @@ async function renderStats() {
     const tr=await supabase.rpc("tournament_list"), ts=tr.error?[]:(tr.data||[]).filter(t=>t.joined), done=ts.filter(t=>t.status==="completed");
     const lbs=await Promise.all(done.map(t=>supabase.rpc("tournament_leaderboard",{p_tournament_id:t.id})));let tournamentWins=0;
     lbs.forEach(r=>{if(r.error||!Array.isArray(r.data)||!r.data.length)return;const top=Math.max(...r.data.map(x=>Number(x.correct_predictions)||0)),mine=r.data.find(x=>x.user_id===state.user.id);if(mine&&Number(mine.correct_predictions)===top&&top>0)tournamentWins++;});
-    if(request!==state.statsRequest||state.tab!=="stats")return;
+    if(request!==state.statsRequest||state.tab!=="board")return;
     const leagues=[...new Set(bets.filter(b=>b.status!=="cancelled").flatMap(b=>[...(b.bet_items||[]).map(x=>x.games),b.games].map(g=>g?.sportstats_league_name).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,"he"));
     const head=document.createElement("h2");head.className="mb-3 text-xl font-extrabold text-gold";head.textContent="הסטטיסטיקה שלי";root.replaceChildren(head);
     const filters=document.createElement("div");filters.className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-panel p-2";

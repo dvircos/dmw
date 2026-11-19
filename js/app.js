@@ -2095,7 +2095,7 @@ async function renderStats() {
   const loading=document.createElement("p"); loading.className="rounded-2xl bg-panel p-8 text-center text-sm text-mist"; loading.textContent="טוען סטטיסטיקה…"; root.append(loading);
   try {
     let bets=[], offset=0, size=500;
-    while(true){const r=await supabase.from("bets").select("id,created_at,bet_amount,potential_payout,status,game_id,market_key,market_label,games(sportstats_league_name),bet_items(game_id,status,market_key,market_label,games(sportstats_league_name))").eq("user_id",state.user.id).order("id",{ascending:true}).range(offset,offset+size-1);if(r.error)throw r.error;const page=r.data||[];bets.push(...page);offset+=size;if(page.length<size)break;}
+    while(true){const r=await supabase.from("bets").select("id,bet_amount,potential_payout,status,game_id,market_key,market_label,games(match_time,sportstats_league_name),bet_items(game_id,status,market_key,market_label,games(match_time,sportstats_league_name))").eq("user_id",state.user.id).order("id",{ascending:true}).range(offset,offset+size-1);if(r.error)throw r.error;const page=r.data||[];bets.push(...page);offset+=size;if(page.length<size)break;}
     const tr=await supabase.rpc("tournament_list"), ts=tr.error?[]:(tr.data||[]).filter(t=>t.joined), done=ts.filter(t=>t.status==="completed");
     const lbs=await Promise.all(done.map(t=>supabase.rpc("tournament_leaderboard",{p_tournament_id:t.id})));let tournamentWins=0;
     lbs.forEach(r=>{if(r.error||!Array.isArray(r.data)||!r.data.length)return;const top=Math.max(...r.data.map(x=>Number(x.correct_predictions)||0)),mine=r.data.find(x=>x.user_id===state.user.id);if(mine&&Number(mine.correct_predictions)===top&&top>0)tournamentWins++;});
@@ -2109,8 +2109,8 @@ async function renderStats() {
     leagueSelect.value=leagues.includes(state.statsLeague)||state.statsLeague==="all"?state.statsLeague:"all";state.statsLeague=leagueSelect.value;
     leagueSelect.onchange=()=>{state.statsLeague=leagueSelect.value;renderStats();};root.append(leagueSelect);
     const cutoff=state.statsPeriod==="30"?Date.now()-2592000000:state.statsPeriod==="90"?Date.now()-7776000000:0;
-    const valid=bets.filter(b=>b.status!=="cancelled"&&(!cutoff||new Date(b.created_at||0).getTime()>=cutoff));
-    const picks=[];valid.forEach(b=>(b.bet_items?.length?b.bet_items:[b]).forEach(x=>picks.push({betId:b.id,status:x.status||b.status,league:(x.games||b.games||{}).sportstats_league_name||"ליגה לא ידועה",market:x.market_label||b.market_label||x.market_key||b.market_key||"תוצאת משחק (1/X/2)"})));
+    const valid=bets.filter(b=>b.status!=="cancelled"&&(!cutoff||[...(b.bet_items||[]).map(x=>x.games?.match_time),b.games?.match_time].some(t=>t&&new Date(t).getTime()>=cutoff)));
+    const picks=[];valid.forEach(b=>(b.bet_items?.length?b.bet_items:[b]).filter(x=>!cutoff||((x.games||b.games||{}).match_time&&new Date((x.games||b.games).match_time).getTime()>=cutoff)).forEach(x=>picks.push({betId:b.id,status:x.status||b.status,league:(x.games||b.games||{}).sportstats_league_name||"ליגה לא ידועה",market:x.market_label||b.market_label||x.market_key||b.market_key||"תוצאת משחק (1/X/2)"})));
     const visiblePicks=picks.filter(p=>state.statsLeague==="all"||p.league===state.statsLeague);
     const decisive=visiblePicks.filter(p=>p.status==="won"||p.status==="lost"), hits=decisive.filter(p=>p.status==="won").length, misses=decisive.length-hits, voids=visiblePicks.filter(p=>p.status==="void").length;
     const filteredTickets=new Set(visiblePicks.map(p=>p.betId)), statsBets=state.statsLeague==="all"?valid:valid.filter(b=>filteredTickets.has(b.id));

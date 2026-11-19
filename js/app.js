@@ -1323,6 +1323,7 @@ async function refreshBoard() {
   if (error) { toast(cleanError(error),"error"); return; }
   state.board = Array.isArray(data) ? data : [];
   renderBoard();
+  renderStats();
 }
 
 function adminHeader(root, titleText, backSection = "home") {

@@ -141,14 +141,13 @@ function showTab(tab) {
   $("games-tools").classList.toggle("hidden", !gamesVisible);
   $("view-games").classList.toggle("hidden", !gamesVisible);
   $("view-bets").classList.toggle("hidden", tab !== "bets");
-  $("view-stats").classList.toggle("hidden", tab !== "stats");
   $("view-board").classList.toggle("hidden", tab !== "board");
   $("view-admin").classList.toggle("hidden", tab !== "admin");
   $("view-tournaments").classList.toggle("hidden", tab !== "tournaments");
   if (tab === "tournaments") { markTournamentNotificationsSeen(); renderTournamentView(); }
   if (gamesVisible) renderGames();
   if (tab === "bets") markSettledBetsSeen();
-  if (tab === "stats") renderStats();
+  if (tab === "board") renderStats();
   if (tab === "admin" && state.isAdmin) refreshAdmin();
   document.querySelectorAll(".nav-btn").forEach((button) => {
     const active = button.dataset.tab === tab;
@@ -961,6 +960,7 @@ function renderBoard() {
     placeholder.className = "rounded-2xl border border-dashed border-slate-700/50 px-4 py-8 text-center text-sm text-mist";
     placeholder.textContent = "עדיין אין שחקנים בקבוצה הזו";
     root.append(placeholder);
+    appendPersonalStatsPanel(root);
     return;
   }
 
@@ -1010,6 +1010,14 @@ function renderBoard() {
   note.className="mt-2 text-[11px] leading-relaxed text-slate-400";
   note.textContent="היתרה הכוללת כוללת יתרה פנויה, הימורים שטרם הסתיימו ודמי כניסה לטורנירים פעילים. הסכום בסוגריים הוא הרווח או ההפסד מהימורים שהסתיימו.";
   root.append(note);
+  appendPersonalStatsPanel(root);
+}
+
+function appendPersonalStatsPanel(root) {
+  const panel=document.createElement("section");
+  panel.id="personal-stats";
+  panel.className="mt-6 border-t border-slate-700/50 pt-5";
+  root.append(panel);
 }
 
 function render() {
@@ -2082,7 +2090,7 @@ async function refreshAdmin() {
 }
 
 async function renderStats() {
-  const root=$("view-stats"), request=++state.statsRequest; root.replaceChildren();
+  const root=$("personal-stats"), request=++state.statsRequest; root.replaceChildren();
   const loading=document.createElement("p"); loading.className="rounded-2xl bg-panel p-8 text-center text-sm text-mist"; loading.textContent="טוען סטטיסטיקה…"; root.append(loading);
   try {
     let bets=[], offset=0, size=500;

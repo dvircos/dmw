@@ -76,6 +76,18 @@ class SportStatsParsingTests(unittest.TestCase):
         self.assertEqual(team_logo_url({"logo": "https://example.com/wrong.png"}, "Atl. Madrid"),
                          "https://crests.football-data.org/78.png")
 
+
+    def test_israeli_club_names_are_translated_and_known_clubs_have_verified_crests(self):
+        from sync_sportstats import ISRAEL_CLUB_NAMES, ISRAEL_CLUB_LOGOS, team_display, team_logo_url
+        self.assertEqual(team_display("Hapoel Tel Aviv"), "הפועל תל אביב")
+        self.assertEqual(team_display("Maccabi Petah Tikva FC"), "מכבי פתח תקווה")
+        self.assertEqual(team_display("Hapoel Beer Sheva"), "הפועל באר שבע")
+        self.assertEqual(team_display("Ihoud Bnei Sakhnin FC"), "בני סכנין")
+        self.assertEqual(team_logo_url({}, "Hapoel Tel Aviv"), ISRAEL_CLUB_LOGOS["hapoel tel aviv"])
+        self.assertEqual(team_logo_url({}, "Maccabi Petah Tikva"), ISRAEL_CLUB_LOGOS["maccabi petah tikva"])
+        self.assertGreaterEqual(len(ISRAEL_CLUB_NAMES), 40)
+        self.assertEqual(len(ISRAEL_CLUB_LOGOS), 15)
+
     def test_national_team_flags_override_provider_supplied_images(self):
         from sync_sportstats import team_logo_url
         self.assertEqual(team_logo_url({"logo": "https://example.com/wrong.png"}, "France"),

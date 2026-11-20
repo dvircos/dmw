@@ -89,6 +89,106 @@ CLUBS = {
     "wolverhampton": ("וולבס", 76),
 }
 
+# Hebrew names for Israeli clubs. Keep aliases here because SportStatsAPI
+# alternates between short names, transliterations and full club names.
+ISRAEL_CLUB_NAMES = {
+    "hapoel tel aviv": "הפועל תל אביב",
+    "hapoel tel-aviv": "הפועל תל אביב",
+    "hapoel tel aviv fc": "הפועל תל אביב",
+    "hapoel tel-aviv fc": "הפועל תל אביב",
+    "maccabi petah tikva": "מכבי פתח תקווה",
+    "maccabi petach tikva": "מכבי פתח תקווה",
+    "maccabi petah tikva fc": "מכבי פתח תקווה",
+    "maccabi petach tikva fc": "מכבי פתח תקווה",
+    "beitar jerusalem": "בית״ר ירושלים",
+    "beitar jerusalem fc": "בית״ר ירושלים",
+    "fc ashdod": "מ.ס. אשדוד",
+    "ashdod": "מ.ס. אשדוד",
+    "m.s. ashdod": "מ.ס. אשדוד",
+    "moadon sport ashdod": "מ.ס. אשדוד",
+    "hapoel beer sheva": "הפועל באר שבע",
+    "hapoel be'er sheva": "הפועל באר שבע",
+    "hapoel be er sheva": "הפועל באר שבע",
+    "hapoel beer sheva fc": "הפועל באר שבע",
+    "hapoel haifa": "הפועל חיפה",
+    "hapoel haifa fc": "הפועל חיפה",
+    "hapoel jerusalem": "הפועל ירושלים",
+    "hapoel jerusalem fc": "הפועל ירושלים",
+    "hapoel katamon": "הפועל ירושלים",
+    "hapoel katamon jerusalem": "הפועל ירושלים",
+    "hapoel petah tikva": "הפועל פתח תקווה",
+    "hapoel petach tikva": "הפועל פתח תקווה",
+    "hapoel petah tikva fc": "הפועל פתח תקווה",
+    "ihud bnei sakhnin": "בני סכנין",
+    "ihoud bnei sakhnin": "בני סכנין",
+    "bnei sakhnin": "בני סכנין",
+    "ihud bnei sakhnin fc": "בני סכנין",
+    "ironi kiryat shmona": "עירוני קריית שמונה",
+    "hapoel kiryat shmona": "עירוני קריית שמונה",
+    "hapoel ironi kiryat shmona": "עירוני קריית שמונה",
+    "ironi kiryat-shmona": "עירוני קריית שמונה",
+    "ironi tiberias": "עירוני טבריה",
+    "ironi tiberias fc": "עירוני טבריה",
+    "maccabi bnei reineh": "מכבי בני ריינה",
+    "maccabi bnei reineh fc": "מכבי בני ריינה",
+    "maccabi bnei raina": "מכבי בני ריינה",
+    "bnei reineh": "מכבי בני ריינה",
+    "maccabi haifa": "מכבי חיפה",
+    "maccabi haifa fc": "מכבי חיפה",
+    "maccabi netanya": "מכבי נתניה",
+    "maccabi netanya fc": "מכבי נתניה",
+    "maccabi tel aviv": "מכבי תל אביב",
+    "maccabi tel-aviv": "מכבי תל אביב",
+    "maccabi tel aviv fc": "מכבי תל אביב",
+    "hapoel ramat gan": "הפועל רמת גן",
+    "hapoel ramat gan fc": "הפועל רמת גן",
+    "hapoel ramat-gan": "הפועל רמת גן",
+    "hapoel kfar saba": "הפועל כפר סבא",
+    "hapoel kfar-saba": "הפועל כפר סבא",
+    "hapoel rishon lezion": "הפועל ראשון לציון",
+    "hapoel rishon le zion": "הפועל ראשון לציון",
+    "bnei yehuda": "בני יהודה",
+    "bnei yehuda tel aviv": "בני יהודה",
+    "hapoel acre": "הפועל עכו",
+    "hapoel akko": "הפועל עכו",
+    "hapoel afula": "הפועל עפולה",
+    "hapoel nof hagalil": "הפועל נוף הגליל",
+    "hapoel nazareth illit": "הפועל נוף הגליל",
+    "hapoel umm al fahm": "הפועל אום אל פחם",
+    "hapoel umm al-fahm": "הפועל אום אל פחם",
+    "maccabi herzliya": "מכבי הרצליה",
+    "maccabi herzelia": "מכבי הרצליה",
+    "hapoel ramat hasharon": "הפועל רמת השרון",
+    "hapoel ramat-hasharon": "הפועל רמת השרון",
+    "hapoel raanana": "הפועל רעננה",
+    "hapoel ra'anana": "הפועל רעננה",
+    "hapoel kfar shalem": "הפועל כפר שלם",
+    "kiryat yam": "מ.ס. קריית ים",
+    "kiryat yam sc": "מ.ס. קריית ים",
+    "maccabi ahi nazareth": "מכבי אחי נצרת",
+    "maccabi ahy nazareth": "מכבי אחי נצרת",
+}
+
+# Independently verified club crests. Provider images remain the fallback for
+# Israeli clubs not listed here (including promoted/relegated lower-division sides).
+ISRAEL_CLUB_LOGOS = {
+    "hapoel tel aviv": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
+    "beitar jerusalem": "https://assets.footylogos.com/logos/beitar-jerusalem/beitar-jerusalem-logo-footylogos.svg",
+    "fc ashdod": "https://assets.footylogos.com/logos/fc-ashdod/fc-ashdod-logo-footylogos.svg",
+    "hapoel beer sheva": "https://assets.footylogos.com/logos/hapoel-beer-sheva/hapoel-beer-sheva-logo-footylogos.svg",
+    "hapoel haifa": "https://assets.footylogos.com/logos/hapoel-haifa/hapoel-haifa-logo-footylogos.svg",
+    "hapoel jerusalem": "https://assets.footylogos.com/logos/hapoel-jerusalem/hapoel-jerusalem-logo-footylogos.svg",
+    "hapoel petah tikva": "https://assets.footylogos.com/logos/hapoel-petah-tikva/hapoel-petah-tikva-logo-footylogos.svg",
+    "ihud bnei sakhnin": "https://assets.footylogos.com/logos/ihud-bnei-sakhnin/ihud-bnei-sakhnin-logo-footylogos.svg",
+    "ironi kiryat shmona": "https://assets.footylogos.com/logos/ironi-kiryat-shmona/ironi-kiryat-shmona-logo-footylogos.svg",
+    "ironi tiberias": "https://assets.footylogos.com/logos/ironi-tiberias/ironi-tiberias-logo-footylogos.svg",
+    "maccabi bnei reineh": "https://assets.footylogos.com/logos/maccabi-bnei-reineh/maccabi-bnei-reineh-logo-footylogos.svg",
+    "maccabi haifa": "https://assets.footylogos.com/logos/maccabi-haifa/maccabi-haifa-logo-footylogos.svg",
+    "maccabi netanya": "https://assets.footylogos.com/logos/maccabi-netanya/maccabi-netanya-logo-footylogos.svg",
+    "maccabi tel aviv": "https://assets.footylogos.com/logos/maccabi-tel-aviv/maccabi-tel-aviv-logo-footylogos.svg",
+    "maccabi petah tikva": "https://media.api-sports.io/football/teams/4495.png",
+}
+
 UCL_LOGOS = {
 "aek athens": 887, "as roma": 104, "roma": 104, "bodo/glimt": 2980, "bodø/glimt": 2980,
 "lask": 4411, "lask linz": 4411, "galatasaray": 432, "dortmund": 124, "borussia dortmund": 124,
@@ -101,13 +201,18 @@ UCL_LOGOS = {
 }
 
 def team_display(name: str) -> str:
-    entry = CLUBS.get(normalize(name))
+    key = normalize(name)
+    if key in ISRAEL_CLUB_NAMES:
+        return ISRAEL_CLUB_NAMES[key]
+    entry = CLUBS.get(key)
     return entry[0] if entry else hebrew_name(name)
 
 def team_logo_url(team: dict[str, Any], name: str) -> str | None:
     # Verified mappings must win over provider images: provider logos have
     # previously been assigned to the wrong club (e.g. Hull City / Liverpool).
     key = normalize(name)
+    if key in ISRAEL_CLUB_LOGOS:
+        return ISRAEL_CLUB_LOGOS[key]
     if key in UCL_LOGOS:
         return f"https://a.espncdn.com/i/teamlogos/soccer/500/{UCL_LOGOS[key]}.png"
     # Official Málaga CF crest from LALIGA; do not use football-data ID 98

@@ -123,6 +123,8 @@ ISRAEL_CLUB_NAMES = {
     "ihoud bnei sakhnin": "בני סכנין",
     "bnei sakhnin": "בני סכנין",
     "ihud bnei sakhnin fc": "בני סכנין",
+    "ihoud bnei sakhnin": "בני סכנין",
+    "ihoud bnei sakhnin fc": "בני סכנין",
     "ironi kiryat shmona": "עירוני קריית שמונה",
     "hapoel kiryat shmona": "עירוני קריית שמונה",
     "hapoel ironi kiryat shmona": "עירוני קריית שמונה",
@@ -180,6 +182,8 @@ ISRAEL_CLUB_LOGOS = {
     "hapoel jerusalem": "https://assets.footylogos.com/logos/hapoel-jerusalem/hapoel-jerusalem-logo-footylogos.svg",
     "hapoel petah tikva": "https://assets.footylogos.com/logos/hapoel-petah-tikva/hapoel-petah-tikva-logo-footylogos.svg",
     "ihud bnei sakhnin": "https://assets.footylogos.com/logos/ihud-bnei-sakhnin/ihud-bnei-sakhnin-logo-footylogos.svg",
+    "ihoud bnei sakhnin": "https://assets.footylogos.com/logos/ihud-bnei-sakhnin/ihud-bnei-sakhnin-logo-footylogos.svg",
+    "ihoud bnei sakhnin fc": "https://assets.footylogos.com/logos/ihud-bnei-sakhnin/ihud-bnei-sakhnin-logo-footylogos.svg",
     "ironi kiryat shmona": "https://assets.footylogos.com/logos/ironi-kiryat-shmona/ironi-kiryat-shmona-logo-footylogos.svg",
     "ironi tiberias": "https://assets.footylogos.com/logos/ironi-tiberias/ironi-tiberias-logo-footylogos.svg",
     "maccabi bnei reineh": "https://assets.footylogos.com/logos/maccabi-bnei-reineh/maccabi-bnei-reineh-logo-footylogos.svg",
@@ -190,6 +194,7 @@ ISRAEL_CLUB_LOGOS = {
     "maccabi petach tikva": "https://media.api-sports.io/football/teams/4495.png",
     "maccabi petah tikva fc": "https://media.api-sports.io/football/teams/4495.png",
     "maccabi petach tikva fc": "https://media.api-sports.io/football/teams/4495.png",
+    "hapoel tel-aviv fc": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
     "hapoel tel-aviv": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
     "hapoel tel aviv fc": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
     "beitar jerusalem fc": "https://assets.footylogos.com/logos/beitar-jerusalem/beitar-jerusalem-logo-footylogos.svg",
@@ -203,6 +208,9 @@ ISRAEL_CLUB_LOGOS = {
     "maccabi netanya fc": "https://assets.footylogos.com/logos/maccabi-netanya/maccabi-netanya-logo-footylogos.svg",
     "maccabi tel aviv fc": "https://assets.footylogos.com/logos/maccabi-tel-aviv/maccabi-tel-aviv-logo-footylogos.svg",
 }
+
+# normalize() removes dots, so keep the normalized Atlético alias as well.
+CLUBS["atl madrid"] = CLUBS["atl. madrid"]
 
 UCL_LOGOS = {
 "aek athens": 887, "as roma": 104, "roma": 104, "bodo/glimt": 2980, "bodø/glimt": 2980,

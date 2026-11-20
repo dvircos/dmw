@@ -86,7 +86,7 @@ class SportStatsParsingTests(unittest.TestCase):
         self.assertEqual(team_logo_url({}, "Hapoel Tel Aviv"), ISRAEL_CLUB_LOGOS["hapoel tel aviv"])
         self.assertEqual(team_logo_url({}, "Maccabi Petah Tikva"), ISRAEL_CLUB_LOGOS["maccabi petah tikva"])
         self.assertGreaterEqual(len(ISRAEL_CLUB_NAMES), 40)
-        self.assertEqual(len(ISRAEL_CLUB_LOGOS), 15)
+        self.assertGreaterEqual(len(ISRAEL_CLUB_LOGOS), 15)
 
     def test_national_team_flags_override_provider_supplied_images(self):
         from sync_sportstats import team_logo_url

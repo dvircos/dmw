@@ -187,6 +187,21 @@ ISRAEL_CLUB_LOGOS = {
     "maccabi netanya": "https://assets.footylogos.com/logos/maccabi-netanya/maccabi-netanya-logo-footylogos.svg",
     "maccabi tel aviv": "https://assets.footylogos.com/logos/maccabi-tel-aviv/maccabi-tel-aviv-logo-footylogos.svg",
     "maccabi petah tikva": "https://media.api-sports.io/football/teams/4495.png",
+    "maccabi petach tikva": "https://media.api-sports.io/football/teams/4495.png",
+    "maccabi petah tikva fc": "https://media.api-sports.io/football/teams/4495.png",
+    "maccabi petach tikva fc": "https://media.api-sports.io/football/teams/4495.png",
+    "hapoel tel-aviv": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
+    "hapoel tel aviv fc": "https://assets.footylogos.com/logos/hapoel-tel-aviv/hapoel-tel-aviv-logo-footylogos.svg",
+    "beitar jerusalem fc": "https://assets.footylogos.com/logos/beitar-jerusalem/beitar-jerusalem-logo-footylogos.svg",
+    "hapoel beer sheva fc": "https://assets.footylogos.com/logos/hapoel-beer-sheva/hapoel-beer-sheva-logo-footylogos.svg",
+    "hapoel haifa fc": "https://assets.footylogos.com/logos/hapoel-haifa/hapoel-haifa-logo-footylogos.svg",
+    "hapoel jerusalem fc": "https://assets.footylogos.com/logos/hapoel-jerusalem/hapoel-jerusalem-logo-footylogos.svg",
+    "hapoel petah tikva fc": "https://assets.footylogos.com/logos/hapoel-petah-tikva/hapoel-petah-tikva-logo-footylogos.svg",
+    "ihud bnei sakhnin fc": "https://assets.footylogos.com/logos/ihud-bnei-sakhnin/ihud-bnei-sakhnin-logo-footylogos.svg",
+    "ironi tiberias fc": "https://assets.footylogos.com/logos/ironi-tiberias/ironi-tiberias-logo-footylogos.svg",
+    "maccabi haifa fc": "https://assets.footylogos.com/logos/maccabi-haifa/maccabi-haifa-logo-footylogos.svg",
+    "maccabi netanya fc": "https://assets.footylogos.com/logos/maccabi-netanya/maccabi-netanya-logo-footylogos.svg",
+    "maccabi tel aviv fc": "https://assets.footylogos.com/logos/maccabi-tel-aviv/maccabi-tel-aviv-logo-footylogos.svg",
 }
 
 UCL_LOGOS = {

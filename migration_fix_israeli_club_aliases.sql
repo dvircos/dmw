@@ -10,6 +10,8 @@ SET home_team = CASE lower(trim(coalesce(nullif(sportstats_api_home_name, ''), h
   WHEN 'hapoel ironi kiryat shmona fc' THEN 'עירוני קריית שמונה'
   WHEN 'kiryat shmona' THEN 'עירוני קריית שמונה'
   WHEN 'ramat gan' THEN 'הפועל רמת גן'
+  WHEN 'hap. ramat gan' THEN 'הפועל רמת גן'
+  WHEN 'hap ramat gan' THEN 'הפועל רמת גן'
   WHEN 'ramat gan fc' THEN 'הפועל רמת גן'
   WHEN 'hapoel ramat gan' THEN 'הפועל רמת גן'
   WHEN 'hapoel ramat gan givatayim' THEN 'הפועל רמת גן'
@@ -24,6 +26,8 @@ home_flag = CASE lower(trim(coalesce(nullif(sportstats_api_home_name, ''), home_
   WHEN 'hapoel ironi kiryat shmona fc' THEN 'https://assets.footylogos.com/logos/ironi-kiryat-shmona/ironi-kiryat-shmona-logo-footylogos.svg'
   WHEN 'kiryat shmona' THEN 'https://assets.footylogos.com/logos/ironi-kiryat-shmona/ironi-kiryat-shmona-logo-footylogos.svg'
   WHEN 'ramat gan' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
+  WHEN 'hap. ramat gan' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
+  WHEN 'hap ramat gan' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
   WHEN 'ramat gan fc' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
   WHEN 'hapoel ramat gan' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
   WHEN 'hapoel ramat gan givatayim' THEN 'https://commons.wikimedia.org/wiki/Special:FilePath/H_Ramat_Gan-Logo.gif'
@@ -32,7 +36,7 @@ home_flag = CASE lower(trim(coalesce(nullif(sportstats_api_home_name, ''), home_
 END
 WHERE lower(trim(coalesce(nullif(sportstats_api_home_name, ''), home_team))) IN (
   'sakhnin','bnei sakhnin','bnei sakhnin fc','ironi kiryat shmona fc',
-  'hapoel ironi kiryat shmona fc','kiryat shmona','ramat gan','ramat gan fc',
+  'hapoel ironi kiryat shmona fc','kiryat shmona','ramat gan','ramat gan fc','hap. ramat gan','hap ramat gan',
   'hapoel ramat gan','hapoel ramat gan givatayim','hapoel ramat gan givatayim fc'
 );
 

@@ -1,3 +1,12 @@
+-- Record when a result is confirmed so settled bets can be sorted by match completion time.
+alter table public.games add column if not exists finished_at timestamptz;
+
+-- Existing finished matches predate this field; use kickoff as a stable fallback.
+-- Newly confirmed results receive their actual confirmation timestamp below.
+update public.games
+set finished_at = match_time
+where status in ('finished','cancelled') and finished_at is null;
+
 -- Safely settle only games already matched to SportStatsAPI by its text match code.
 -- Does not modify Winner odds, odds_locked, legacy fixture_id, or game IDs.
 create or replace function public.sync_sportstats_result(
@@ -46,7 +55,8 @@ begin
   set home_score = p_home_score,
       away_score = p_away_score,
       status = 'finished',
-      result_confirmed = true
+      result_confirmed = true,
+      finished_at = coalesce(finished_at, now())
   where id = v_game.id
   returning * into v_game;
 

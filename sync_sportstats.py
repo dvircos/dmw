@@ -487,16 +487,48 @@ class SportStatsSync:
     def fetch_league(self, league_code: str, start: str, end: str) -> list[dict[str, Any]]:
         if self.api_key in PLACEHOLDERS:
             raise RuntimeError("SPORTSTATS_API_KEY is missing or still contains its placeholder")
-        # Exactly one list request per league. No retries and no detail endpoint calls.
+        # One list endpoint per league; retry only transient upstream failures.
+        # Every retry reserves one additional provider request against the daily quota.
         params = {"league_id": league_code, "date_from": start, "date_to": end,
                   "limit": 100, "order": "asc"}
-        response = self._request(
-            "GET", f"{API_BASE}/soccer/matches",
-            params=params,
-            purpose=f"SportStatsAPI · שליפת משחקים · {league_code} · {start} עד {end}",
-            session=self.session,
-            provider=True,
-        )
+        purpose = f"SportStatsAPI · שליפת משחקים · {league_code} · {start} עד {end}"
+        response = None
+        for attempt in range(3):
+            if attempt:
+                allowed = self.rpc(
+                    "reserve_api_requests",
+                    {"p_count": 1, "p_emergency": False},
+                    purpose=f"שמירת מכסה לניסיון חוזר {attempt} · {league_code}",
+                )
+                if allowed is not True:
+                    raise RuntimeError(
+                        f"SportStatsAPI transient HTTP {response.status_code if response else 'unknown'}; "
+                        "daily quota does not allow another retry"
+                    )
+                delay = 2 if attempt == 1 else 5
+                log.warning(
+                    "SportStatsAPI returned HTTP %s for %s; retry %s/2 in %ss.",
+                    response.status_code if response else "unknown",
+                    league_code, attempt, delay,
+                )
+                __import__("time").sleep(delay)
+            response = self._request(
+                "GET", f"{API_BASE}/soccer/matches",
+                params=params,
+                purpose=purpose if not attempt else f"{purpose} · ניסיון חוזר {attempt}",
+                session=self.session,
+                provider=True,
+            )
+            if response.status_code not in (502, 503, 504):
+                break
+
+        if response is None:
+            raise RuntimeError(f"SportStatsAPI request did not run for league {league_code}")
+        if response.status_code in (502, 503, 504):
+            raise RuntimeError(
+                f"SportStatsAPI remained unavailable after 3 attempts "
+                f"(HTTP {response.status_code}) for league {league_code}"
+            )
         if response.status_code in (401, 403):
             raise RuntimeError(f"SportStatsAPI rejected the configured key (HTTP {response.status_code})")
         if response.status_code == 429:

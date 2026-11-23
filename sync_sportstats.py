@@ -41,7 +41,11 @@ CLUBS = {
     "fulham": ("פולהאם", 63),
     "alaves": ("אלאבס", 263),
     "deportivo la coruna": ("דפורטיבו לה קורוניה", 560),
+    "deportivo de la coruna": ("דפורטיבו לה קורוניה", 560),
+    "deportivo de la coruña": ("דפורטיבו לה קורוניה", 560),
+    "deportivo la coruña": ("דפורטיבו לה קורוניה", 560),
     "dep a coruna": ("דפורטיבו לה קורוניה", 560),
+    "dep a coruña": ("דפורטיבו לה קורוניה", 560),
     "tottenham": ("טוטנהאם", 73),
     "tottenham hotspur": ("טוטנהאם", 73),
     "ipswich": ("איפסוויץ'", 349),
@@ -258,6 +262,9 @@ def team_logo_url(team: dict[str, Any], name: str) -> str | None:
     # Verified mappings must win over provider images: provider logos have
     # previously been assigned to the wrong club (e.g. Hull City / Liverpool).
     key = normalize(name)
+    # Official RC Deportivo crest (updated club identity, 2026).
+    if key in {"deportivo la coruna", "deportivo de la coruna", "deportivo de la coruña", "deportivo la coruña", "dep a coruna", "dep a coruña"}:
+        return "https://scdn.ovixia.app/images/scn1tr4b/production/cd0e5ce07f9273bd8276e3bb269addaff65037c9-1080x1080.svg"
     if key in ISRAEL_CLUB_LOGOS:
         return ISRAEL_CLUB_LOGOS[key]
     if key in UCL_LOGOS:

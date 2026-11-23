@@ -546,7 +546,7 @@ begin
     if b.market_key='btts' then
       v_winning_selection := case when new.home_score>0 and new.away_score>0 then 'yes' else 'no' end;
     elsif b.market_key='total_goals_2_5' then
-      v_winning_selection := case when new.home_score+new.away_score>coalesce(v_market.line,2.5) then 'over' else 'under' end;
+      v_winning_selection := case when new.home_score+new.away_score>coalesce(b.market_line,2.5) then 'over' else 'under' end;
     elsif b.market_key='handicap_ft' then
       v_adjusted_home := new.home_score + coalesce(b.market_line,0);
       v_winning_selection := case when v_adjusted_home>new.away_score then 'home'

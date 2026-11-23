@@ -636,6 +636,21 @@ function renderBets() {
   const isPending = (bet) => bet.status === "pending";
   const visible = historyBets.filter((bet) => state.betsFilter === "all"
     || (state.betsFilter === "pending" ? isPending(bet) : !isPending(bet)));
+
+  // Settled bets are ordered by the actual time their game(s) finished,
+  // newest completion first, not by the order in which the user placed them.
+  if (state.betsFilter === "settled") {
+    const settledAt = (bet) => {
+      const legs = slipLegs(bet);
+      const games = legs.length
+        ? legs.map((leg) => leg.games || {}).filter(Boolean)
+        : [bet.games || {}];
+      const timestamps = games.map((game) => Date.parse(game.finished_at || game.match_time || ""))
+        .filter(Number.isFinite);
+      return timestamps.length ? Math.max(...timestamps) : 0;
+    };
+    visible.sort((a, b) => settledAt(b) - settledAt(a) || Number(b.id) - Number(a.id));
+  }
   const counts = {
     pending: historyBets.filter(isPending).length,
     settled: historyBets.filter((bet) => ["won", "lost", "void"].includes(bet.status)).length,
@@ -1305,7 +1320,7 @@ async function refreshBets() {
   if (!state.user) return;
   const { data, error } = await supabase
     .from("bets")
-    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, market_id, market_key, market_label, market_selection, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, market_id, market_key, market_selection, market_label, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, home_odds, draw_odds, away_odds))")
+    .select("id, bet_selection, bet_amount, odds, potential_payout, status, game_id, market_id, market_key, market_label, market_selection, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, finished_at, home_odds, draw_odds, away_odds), bet_items(game_id, bet_selection, odds, status, market_id, market_key, market_selection, market_label, market_outcome_label, market_line, games(home_team, away_team, status, home_score, away_score, match_time, finished_at, home_odds, draw_odds, away_odds))")
     .eq("user_id", state.user.id)
     .order("id", { ascending: false })
     .limit(1000);

@@ -219,8 +219,13 @@ function teamColumn(url, name) {
   wrap.className = "flex min-w-0 flex-col items-center gap-1 text-center";
   const title = document.createElement("span");
   title.className = "max-w-full whitespace-normal break-words text-sm font-bold leading-tight";
-  title.textContent = name;
-  wrap.append(flag(url), title);
+  const normalized = String(name || "").normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const isDeportivo = ["dep a coruna", "deportivo la coruna", "deportivo de la coruna"].includes(normalized);
+  title.textContent = isDeportivo ? "דפורטיבו לה קורוניה" : name;
+  const crest = isDeportivo
+    ? "https://scdn.ovixia.app/images/scn1tr4b/production/cd0e5ce07f9273bd8276e3bb269addaff65037c9-1080x1080.svg"
+    : url;
+  wrap.append(flag(crest), title);
   return wrap;
 }
 

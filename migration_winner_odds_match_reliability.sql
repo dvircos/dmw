@@ -9,22 +9,22 @@ immutable
 parallel safe
 set search_path = public
 as $function$
-  select case
-    when regexp_replace(lower(coalesce(p_name,'')), '[^a-z0-9א-ת]', '', 'g')
-      in ('לאסק','lask','lasklinz') then 'lask'
-    when regexp_replace(lower(coalesce(p_name,'')), '[^a-z0-9א-ת]', '', 'g')
-      in ('בודוגלימט','bodoglimt','fkbodoglimt') then 'bodoglimt'
-    when regexp_replace(lower(coalesce(p_name,'')), '[^a-z0-9א-ת]', '', 'g')
-      in ('פסוואיינדהובן','פסו','psv','psveindhoven') then 'psv'
-    when regexp_replace(lower(coalesce(p_name,'')), '[^a-z0-9א-ת]', '', 'g')
-      in ('ריאלמדריד','realmadrid') then 'realmadrid'
-    else regexp_replace(
+  with normalized as (
+    select regexp_replace(
       translate(lower(coalesce(p_name,'')),
         'áàäâãåæçéèëêíìïîñóòöôõøúùüûýÿß',
         'aaaaaaaceeeeiiiinoooooouuuuyys'),
       '[^a-z0-9א-ת]', '', 'g'
-    )
+    ) as k
+  )
+  select case
+    when k in ('לאסק','lask','lasklinz') then 'lask'
+    when k in ('בודוגלימט','bodoglimt','fkbodoglimt') then 'bodoglimt'
+    when k in ('פסוואיינדהובן','פסו','psv','psveindhoven') then 'psv'
+    when k in ('ריאלמדריד','realmadrid') then 'realmadrid'
+    else k
   end
+  from normalized
 $function$;
 
 create or replace function public.import_winner_odds(p_matches jsonb)

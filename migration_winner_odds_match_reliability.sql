@@ -321,3 +321,49 @@ end; $$;
 revoke all on function public.import_winner_odds(jsonb) from public,anon;
 grant execute on function public.import_winner_odds(jsonb) to authenticated;
 notify pgrst,'reload schema';
+
+
+-- Normalize Winner's common Hebrew/English naming variants before matching.
+create or replace function public.winner_team_match_key(p_name text)
+returns text language sql immutable parallel safe set search_path=public as $$
+  with normalized as (
+    select regexp_replace(
+      translate(lower(coalesce(p_name,'')),
+        'áàäâãåæçéèëêíìïîñóòöôõøúùüûýÿß',
+        'aaaaaaaceeeeiiiinoooooouuuuyys'),
+      '[^a-z0-9א-ת]', '', 'g'
+    ) as k
+  )
+  select case
+    when k in ('לאסק','לאסקלינץ','lask','lasklinz') then 'lask'
+    when k in ('בודוגלימט','בודו','גלימט','bodoglimt','fkbodoglimt','bodo','glimt') then 'bodoglimt'
+    when k in ('פסוואיינדהובן','פסו','psv','psveindhoven','איינדהובן') then 'psv'
+    when k in ('ריאלמדריד','ריאל','realmadrid','real') then 'realmadrid'
+    when k in ('רבלייפציג','לייפציג','rbleipzig','rasenballsportleipzig') then 'rbleipzig'
+    when k in ('לאנס','lens') then 'lens'
+    when k in ('סלובןברטיסלבה','סלובן','slovanbratislava','slovan') then 'slovanbratislava'
+    when k in ('בטיס','ריאלבטיס','realbetis','betis') then 'betis'
+    when k in ('סבאחבאקו','סבאח','sabafc','sabahfc') then 'sabahfc'
+    when k in ('שחטארדונצק','שחטארדונייצק','שחטאר','shakhtardonetsk','shakhtar') then 'shakhtardonetsk'
+    when k in ('פנרבחצה','fenerbahce') then 'fenerbahce'
+    when k in ('ליל','lille') then 'lille'
+    when k in ('באיירןמינכן','באיירן','ביירןמינכן','bayernmunich','bayern') then 'bayernmunich'
+    when k in ('פריזסןזמן','פריזסןזרמן','פאריססןזרמן','פריז','פאריס','psg','parissaintgermain') then 'psg'
+    when k in ('רומא','asroma','roma') then 'asroma'
+    when k in ('מכביפתחתקווה','מכביפתחתקוה','maccabipetachtikva') then 'maccabipetachtikva'
+    when k in ('הפועלתלאביב','hapoeltelaviv') then 'hapoeltelaviv'
+    when k in ('לבאנטה','levante') then 'levante'
+    when k in ('ראסינגסנטנדר','ראסינגדהסנטנדר','racingsantander','racingdesantander') then 'racingsantander'
+    when k in ('לידס','לידסיונייטד','leeds','leedsunited') then 'leedsunited'
+    when k in ('קובנטרי','coventry') then 'coventry'
+    when k in ('ראיווייקאנו','ראיוויקאנו','rayovallecano','rayo') then 'rayovallecano'
+    when k in ('הפועלרמתגן','hapramatgan') then 'hapoelramatgan'
+    when k in ('עירוניקרייתשמונה','עירוניקריתשמונה','kiryatshmona') then 'kiryatshmona'
+    when k in ('מכבתלאביב','מכביתלאביב','maccabitelaviv') then 'maccabitelaviv'
+    when k in ('הפועלפתחתקווה','הפועלפתחתקוה','hapoelpetachtikva') then 'hapoelpetachtikva'
+    else k
+  end from normalized
+$$;
+revoke all on function public.winner_team_match_key(text) from public,anon;
+grant execute on function public.winner_team_match_key(text) to authenticated;
+notify pgrst,'reload schema';

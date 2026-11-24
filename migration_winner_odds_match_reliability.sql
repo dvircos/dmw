@@ -35,6 +35,8 @@ set search_path = public
 as $function$
 declare
   item jsonb;
+  v_home text;
+  v_away text;
   v_home_key text;
   v_away_key text;
   v_kickoff timestamptz;
@@ -62,8 +64,10 @@ begin
   for item in select value from jsonb_array_elements(p_matches)
   loop
     begin
-      v_home_key := public.winner_team_match_key(item->>'home_team');
-      v_away_key := public.winner_team_match_key(item->>'away_team');
+      v_home := nullif(trim(item->>'home_team'), '');
+      v_away := nullif(trim(item->>'away_team'), '');
+      v_home_key := public.winner_team_match_key(v_home);
+      v_away_key := public.winner_team_match_key(v_away);
       v_kickoff := nullif(item->>'kickoff', '')::timestamptz;
       v_home_odds := nullif(item->>'home_odds', '')::numeric;
       v_draw_odds := nullif(item->>'draw_odds', '')::numeric;
@@ -87,9 +91,17 @@ begin
            draw_odds = v_draw_odds,
            away_odds = v_away_odds,
            odds_locked = true
-     where public.winner_team_match_key(g.home_team) = v_home_key
-       and public.winner_team_match_key(g.away_team) = v_away_key
-       and abs(extract(epoch from (g.match_time - v_kickoff))) <= 5400
+     where (
+          public.winner_team_match_key(g.home_team) = v_home_key
+          or public.winner_team_match_key(g.sportstats_api_home_name) = v_home_key
+          or public.winner_team_match_key(g.api_home_team_name) = v_home_key
+       )
+       and (
+          public.winner_team_match_key(g.away_team) = v_away_key
+          or public.winner_team_match_key(g.sportstats_api_away_name) = v_away_key
+          or public.winner_team_match_key(g.api_away_team_name) = v_away_key
+       )
+       and abs(extract(epoch from (g.match_time - v_kickoff))) <= 10800
        and g.status = 'upcoming'
        and g.match_time > now() + interval '5 minutes'
        and coalesce(g.result_confirmed, false) = false;

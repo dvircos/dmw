@@ -27,6 +27,20 @@ as $function$
   from normalized
 $function$;
 
+
+create table if not exists public.winner_odds_import_runs (
+  id bigserial primary key,
+  created_at timestamptz not null default now(),
+  received integer not null default 0,
+  processed integer not null default 0,
+  matched integer not null default 0,
+  updated integer not null default 0,
+  unmatched integer not null default 0,
+  unmatched_samples jsonb not null default '[]'::jsonb
+);
+alter table public.winner_odds_import_runs enable row level security;
+revoke all on public.winner_odds_import_runs from public, anon, authenticated;
+
 create or replace function public.import_winner_odds(p_matches jsonb)
 returns jsonb
 language plpgsql
@@ -49,6 +63,7 @@ declare
   v_valid integer := 0;
   v_matched integer := 0;
   v_unmatched integer := 0;
+  v_unmatched_samples jsonb := '[]'::jsonb;
 begin
   if not public.admin_is_admin() then
     raise exception 'אין הרשאת מנהל';
@@ -112,8 +127,17 @@ begin
       v_updated := v_updated + v_rows;
     else
       v_unmatched := v_unmatched + 1;
+      if jsonb_array_length(v_unmatched_samples) < 10 then
+        v_unmatched_samples := v_unmatched_samples || jsonb_build_array(jsonb_build_object(
+          'home_team', v_home, 'away_team', v_away, 'kickoff', v_kickoff,
+          'home_odds', v_home_odds, 'draw_odds', v_draw_odds, 'away_odds', v_away_odds
+        ));
+      end if;
     end if;
   end loop;
+
+  insert into public.winner_odds_import_runs(received,processed,matched,updated,unmatched,unmatched_samples)
+  values(v_received,v_valid,v_matched,v_updated,v_unmatched,v_unmatched_samples);
 
   return jsonb_build_object(
     'received', v_received,
@@ -124,6 +148,10 @@ begin
   );
 end;
 $function$;
+
+revoke all on function public.import_winner_odds(jsonb) from public, anon;
+grant execute on function public.import_winner_odds(jsonb) to authenticated;
+notify pgrst, 'reload schema';
 
 revoke all on function public.winner_team_match_key(text) from public, anon;
 grant execute on function public.winner_team_match_key(text) to authenticated;
